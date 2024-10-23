@@ -2,10 +2,15 @@ import logging
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+import sys
 
-load_dotenv('config.env')
+if getattr(sys, 'frozen', False):
+    base_dir = os.path.dirname(sys.executable)
+else:
+    base_dir = os.path.dirname(__file__)
+    
+load_dotenv(os.path.join(base_dir,'config.env'))
 
-# puxa o ambiente de trabalho
 current_env = os.getenv('ENV', 'não definido')
 
 # Configurando o log
