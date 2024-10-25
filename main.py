@@ -29,6 +29,8 @@ def enviar_emails():
 
     if config:
             ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config
+
+
     else:
             logger.warning("Configuração SMTP não encontrada.")
             exit()
@@ -52,7 +54,7 @@ def enviar_emails():
         localizador = str(uuid.uuid4()) 
 
         email_body = generate_email_body(cliente, processos, logo, localizador, data_do_dia)
-        email_receiver =  smtp_envio_test#processos[0]['emails']
+        email_receiver =  processos[0]['emails']
         bcc_receivers = smtp_bcc_emails
         cc_receiver = smtp_cc_emails
         subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
@@ -64,21 +66,22 @@ def enviar_emails():
         object_name = f"{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
         permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)
 
-        # #verifica se o cliente tem numero para ser enviado
-        # if not cliente_number:
-        #     logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
-        # else:
-        #     for numero in cliente_number:
-        #         #envia a mensagem via whatsapp
-        #         enviar_mensagem_whatsapp(ID_lig,
-        #                                 url_Sirius,
-        #                                 sirius_Token,
-        #                                 numero['numero'],
-        #                                 permanent_url,
-        #                                 f"Distribuição de novas ações - {cliente}",
-        #                                 f"Total: {len(processos)} publicações",
-        #                                 whatslogo
-        #                                 )
+
+        #verifica se o cliente tem numero para ser enviado
+        if not cliente_number:
+            logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
+        else:
+            for numero in cliente_number:
+                #envia a mensagem via whatsapp
+                enviar_mensagem_whatsapp(ID_lig,
+                                        url_Sirius,
+                                        sirius_Token,
+                                        numero['numero'],
+                                        permanent_url,
+                                        f"Distribuição de novas ações - {cliente}",
+                                        f"Total: {len(processos)} publicações",
+                                        whatslogo
+                                        )
 
         logger.info(f"""E-mail enviado para {cliente} às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                         numeros: {','.join(cliente['numero'] for cliente in cliente_number)}\n---------------------------------------------------""")
@@ -86,6 +89,8 @@ def enviar_emails():
 
         for processo in processos:
             processo_id = processo['ID_processo']
+            
+            #envia os dados para alteração de status
             status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
                             data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number,permanent_url)
         
@@ -106,16 +111,15 @@ def Atualizar_lista_pendetes():
 
 
 # atualiza a lista de pendentes:
-#schedule.every().hour.do(Atualizar_lista_pendetes)
+schedule.every().hour.do(Atualizar_lista_pendetes)
 
 # # Agenda o envio para todos os dias às 16:00
-#schedule.every().day.at("16:00").do(enviar_emails)
+schedule.every().day.at("16:00").do(enviar_emails)
 
 if __name__ == "__main__":
 
-    enviar_emails()
-    # Atualizar_lista_pendetes()
+    Atualizar_lista_pendetes()
 
-    # while True:
-    #     schedule.run_pending()  # Executa as tarefas agendadas
-    #     time.sleep(1)
+    while True:
+        schedule.run_pending()  # Executa as tarefas agendadas
+        time.sleep(1)
