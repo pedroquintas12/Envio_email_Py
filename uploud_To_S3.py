@@ -2,6 +2,7 @@ from logger_config import logger
 import boto3
 import io
 from botocore.exceptions import NoCredentialsError, ClientError
+
 def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, aws_s3_secret_key):
     # Criação do cliente S3
     s3_client = boto3.client(
@@ -19,10 +20,12 @@ def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, a
         logger.info(f"Arquivo {object_name} enviado para o S3 com sucesso.")
 
         # Retornar a URL permanente do arquivo
-        return f"https://{bucket_name}.s3.amazonaws.com/{object_name}"
+        return f"https://{bucket_name}/{object_name}"  
     except FileNotFoundError:
         logger.error(f"O arquivo {object_name} não foi encontrado.")
     except NoCredentialsError:
         logger.error("As credenciais do AWS não estão disponíveis.")
     except ClientError as e:
         logger.error(f"Erro ao enviar arquivo para o S3: {e}")
+    except Exception as err:
+        logger.error(f"erro não identificado ao enviar para S3: {err}")
