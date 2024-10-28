@@ -16,14 +16,13 @@ def fetch_processes_and_clients():
 
     try:
         query = (
-            "SELECT c.Cliente_VSAP as clienteVSAP, p.Cod_escritorio, p.numero_processo, "
+            "SELECT p.Cod_escritorio, p.numero_processo, "
             "MAX(p.data_distribuicao) as data_distribuicao, "
             "p.orgao_julgador, p.tipo_processo, p.status, "
-            "p.uf, p.sigla_sistema, MAX(p.instancia), p.tribunal, MAX(p.ID_processo), MAX(p.LocatorDB), p.tipo_processo, MAX(c.emails) "
+            "p.uf, p.sigla_sistema, MAX(p.instancia), p.tribunal, MAX(p.ID_processo), MAX(p.LocatorDB), p.tipo_processo "
             "FROM apidistribuicao.processo AS p "
-            "JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio "
             "WHERE p.status = 'P' "
-            "GROUP BY p.numero_processo, clienteVSAP, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, p.uf, p.sigla_sistema, p.tribunal;"
+            "GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, p.uf, p.sigla_sistema, p.tribunal;"
         )
 
         db_cursor.execute(query)
@@ -44,32 +43,31 @@ def fetch_processes_and_clients():
         db_connection.close()
 
 def process_result(result, clientes_data):
-    clienteVSAP = result[0]
-    num_processo = result[2]
-    data_distribuicao = datetime.strptime(str(result[3]), '%Y-%m-%d').strftime('%d/%m/%Y')
-    tribunal = result[10]
-    uf = result[7]
-    instancia = result[9]
-    comarca = result[8]
-    emails= result[14]
+    clienteVSAP = nome_cliente(result[0])
+    num_processo = result[1]
+    data_distribuicao = datetime.strptime(str(result[2]), '%Y-%m-%d').strftime('%d/%m/%Y')
+    tribunal = result[9]
+    uf = result[6]
+    instancia = result[8]
+    comarca = result[7]
 
     # Collect for the process
-    links_list = fetch_links(result[11])
-    autor_list = fetch_autor(result[11])
-    reu_list = fetch_reu(result[11])
-    status_cliente = validar_cliente(result[1])
+    links_list = fetch_links(result[10])
+    autor_list = fetch_autor(result[10])
+    reu_list = fetch_reu(result[10])
+    status_cliente = validar_cliente(result[0])
 
     # Add process data to the clients' data
     if clienteVSAP not in clientes_data:
         clientes_data[clienteVSAP] = []
 
     clientes_data[clienteVSAP].append({
-        'ID_processo' : result[11],
-        'cod_escritorio': result[1],
+        'ID_processo' : result[10],
+        'cod_escritorio': result[0],
         'numero_processo': num_processo,
         'data_distribuicao': data_distribuicao,
-        'orgao': result[4],
-        'classe_judicial': result[5],
+        'orgao': result[3],
+        'classe_judicial': result[4],
         'autor': autor_list if autor_list else "[Nenhum dado disponível]",
         'reu': reu_list if reu_list else "[Nenhum dado disponível]",
         'links': links_list,
@@ -77,9 +75,8 @@ def process_result(result, clientes_data):
         'uf': uf,
         'instancia': instancia,
         'comarca': comarca,
-        'localizador': result[12],
-        'tipo_processo': result[13],
-        'emails': emails,
+        'localizador': result[11],
+        'tipo_processo': result[12],
         'cliente_status' : status_cliente
     })
 
@@ -183,14 +180,14 @@ def fetch_numero(cod_cliente):
 #faz a verficação se o cliente esta ativo (L) ou Bloqueado (B)
 def validar_cliente(cod_cliente):
     try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
+        db_connection = get_db_ligcontato()
+        db_cursor_lig = db_connection.cursor()
 
-        db_cursor.execute("SELECT status FROM clientes WHERE Cod_escritorio = %s",(cod_cliente,))
-        cliente_STATUS = db_cursor.fetchone()
+        db_cursor_lig.execute("SELECT status FROM offices WHERE office_code = %s",(cod_cliente,))
+        cliente_STATUS = db_cursor_lig.fetchone()
 
         db_connection.close()
-        db_cursor.close()
+        db_cursor_lig.close()
 
         return cliente_STATUS
     except mysql.connector.Error as err:
@@ -204,7 +201,7 @@ def fetch_email(cod_cliente):
         #capturar email para envio
         db_cursor_lig.execute("""SELECT GROUP_CONCAT(DISTINCT oe.email ORDER BY oe.email SEPARATOR ', ') 
                                FROM offices_emails oe JOIN offices e ON oe.offices_id = e.offices_id WHERE e.office_code = %s
-                              AND oe.status = 'L' AND oe.deleted = 0""",(cod_cliente,))
+                              AND oe.status = 'L' AND oe.deleted = 0 AND oe.receive_distribution = 1""",(cod_cliente,))
         email_cliente = db_cursor_lig.fetchone()
 
         db_cursor_lig.close()
@@ -222,7 +219,7 @@ def fetch_companies():
 
         # Puxar dados de configuração do companies
         db_cursor.execute("""SELECT ID_lig, url_Sirius, sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, 
-                          smtp_from_name,smtp_reply_to, smtp_cc_emails,smtp_bcc_emails ,url_thumbnail_whatsapp, url_thumbnail FROM companies""")
+                          smtp_from_name,smtp_reply_to, smtp_cc_emails,smtp_bcc_emails,smtp_envio_test ,url_thumbnail_whatsapp, url_thumbnail FROM companies""")
         config = db_cursor.fetchone()
 
         db_cursor.close()
@@ -261,3 +258,17 @@ def status_envio(processo_id,numero_processo,cod_escritorio,localizador_processo
         db_connection.close()
     except mysql.connector.Error as err:
         logger.error(f"Erro ao atualizar o status ou registrar o envio: {err}")
+
+def nome_cliente(cod_cliente):
+    try:
+        db_connection = get_db_ligcontato()
+        db_cursor_lig = db_connection.cursor()
+
+        db_cursor_lig.execute("""SELECT description FROM offices WHERE office_code = %s""", (cod_cliente,))
+        cliente = db_cursor_lig.fetchone()
+        db_cursor_lig.close()
+        db_connection.close()
+
+        return cliente[0]
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao capturar nome: {err}")
