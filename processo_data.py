@@ -206,7 +206,8 @@ def fetch_email(cod_cliente):
 
         db_cursor_lig.close()
         db_connection.close()
-        return email_cliente
+
+        return email_cliente[0]
      
      except Exception as err:
          logger.error(f"erro na consulta do email: {err}")

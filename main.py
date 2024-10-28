@@ -114,9 +114,9 @@ def enviar_emails():
             
 
         logger.info(f"\nEnvio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
-        
-    except Exception:
-         logger.error("ERRO AO EXECUTAR CODIGO MAIN")
+    except Exception as err:
+        logger.error(f"Erro ao executar o codigo: {err}")
+
 
 # Atualiza a exibição
 def Atualizar_lista_pendetes():
