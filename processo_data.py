@@ -35,7 +35,7 @@ def fetch_processes_and_clients():
 
         return clientes_data
 
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"Erro ao executar a consulta: {err}")
         return {}
     finally:
@@ -103,7 +103,7 @@ def fetch_links(process_id):
         db_connection.close()
 
         return links_list
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"erro na consulta do documento inicial: {err}")
 
 #captura o autor pelo ID do processo
@@ -128,7 +128,7 @@ def fetch_autor(process_id):
         db_connection.close()
 
         return autor_list
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"erro na consulta do Autor: {err}")    
 
 #captura o reu pelo ID do processo
@@ -153,7 +153,7 @@ def fetch_reu(process_id):
         db_connection.close()
 
         return reu_list
-    except mysql.connector.Error as err:
+    except Exception as err:
          logger.error(f"erro na consulta do Reu: {err}")
 
 #captura os numeros para envio
@@ -174,7 +174,7 @@ def fetch_numero(cod_cliente):
         db_cursor_lig.close()
 
         return list_numbers
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"erro na consulta do numero de celular: {err}")
 
 #faz a verficação se o cliente esta ativo (L) ou Bloqueado (B)
@@ -190,7 +190,7 @@ def validar_cliente(cod_cliente):
         db_cursor_lig.close()
 
         return cliente_STATUS
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"erro na consulta do status do cliente: {err}")
 
 #captura emails para serem enviados 
@@ -208,7 +208,7 @@ def fetch_email(cod_cliente):
         db_connection.close()
         return email_cliente
      
-     except mysql.connector.Error as err:
+     except Exception as err:
          logger.error(f"erro na consulta do email: {err}")
          
 #puxa todos os dados necessario para envio de email e Whatsapp (SMTP/URL API)
@@ -227,7 +227,7 @@ def fetch_companies():
 
         return config
 
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"Erro na consulta do banco companies: {err}")
         exit()
 
@@ -270,5 +270,5 @@ def nome_cliente(cod_cliente):
         db_connection.close()
 
         return cliente[0]
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"Erro ao capturar nome: {err}")

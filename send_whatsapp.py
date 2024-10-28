@@ -31,3 +31,5 @@ def enviar_mensagem_whatsapp(ID_lig, url_Sirius, sirius_Token, numero_cliente, u
             logger.error(f"Erro ao enviar WhatsApp: {response.status_code}, {response.text}\n Corpo requisição: {json.dumps(data, indent=4)}.")
     except requests.RequestException as e:
         logger.error(f"Erro na requisição ao enviar WhatsApp: {e}")
+    except Exception as err:
+        logger.error(f"Erro ao enviar whatsapp: {err}")

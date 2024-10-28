@@ -27,3 +27,5 @@ def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, a
         logger.error("As credenciais do AWS não estão disponíveis.")
     except ClientError as e:
         logger.error(f"Erro ao enviar arquivo para o S3: {e}")
+    except Exception as err:
+        logger.error(f"erro não identificado ao enviar para S3: {err}")
