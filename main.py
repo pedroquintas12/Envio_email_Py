@@ -12,6 +12,7 @@ from processo_data import fetch_numero
 from processo_data import fetch_email
 from processo_data import fetch_companies
 from processo_data import status_envio
+from processo_data import cliente_erro
 import sys
 import os
 from dotenv import load_dotenv
@@ -48,22 +49,33 @@ def enviar_emails():
         smtp_config = (smtp_host, smtp_port, smtp_user, smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,logo)
 
         for cliente, processos in clientes_data.items():
-            
+            ID_processo = processos[0]['ID_processo']
             cliente_STATUS = processos[0]['cliente_status']
             cod_cliente = processos[0]['cod_escritorio']
             cliente_number = fetch_numero(cod_cliente)
             emails = fetch_email(cod_cliente)
             env = os.getenv('ENV')
 
+            #Se o cliente não tem email para ser enviado, logo esta "bloquado"
+            if not emails:
+                logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou esta bloqueado")
+                contador_Inativos += 1
+                cliente_erro(ID_processo)
+                continue
+            #verifica se existe algum cliente com esse codigo VSAP
             if not cliente_STATUS:
                 logger.warning(f"VSAP: {cod_cliente} não esta cadastrado na API email não enviado!")
                 contador_Inativos += 1
+                cliente_erro(ID_processo)
                 continue
-            else:
-                if cliente_STATUS[0] != 'L':
-                    logger.warning(f"VSAP: {cod_cliente} não esta ativo na API email não enviado!")
-                    contador_Inativos += 1
-                    continue
+            #verifica se o Status dele esta Liberado(L)
+            if cliente_STATUS[0] != 'L':
+                logger.warning(f"VSAP: {cod_cliente} não esta ativo na API email não enviado!")
+                contador_Inativos += 1
+                cliente_erro(ID_processo)
+                continue
+            
+
             
             localizador = str(uuid.uuid4()) 
 
@@ -99,12 +111,12 @@ def enviar_emails():
                                             numero['numero'],
                                             permanent_url,
                                             f"Distribuição de novas ações - {cliente}",
-                                            f"Total: {len(processos)} publicações",
+                                            f"Total: {len(processos)} Distribuições",
                                             whatslogo
                                             )
 
             logger.info(f"""E-mail enviado para {cliente} às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
-                            numeros: {','.join(cliente['numero'] for cliente in cliente_number)}\n---------------------------------------------------""")
+                            \n---------------------------------------------------""")
 
 
             for processo in processos:

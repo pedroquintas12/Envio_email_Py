@@ -21,7 +21,7 @@ def fetch_processes_and_clients():
             "p.orgao_julgador, p.tipo_processo, p.status, "
             "p.uf, p.sigla_sistema, MAX(p.instancia), p.tribunal, MAX(p.ID_processo), MAX(p.LocatorDB), p.tipo_processo "
             "FROM apidistribuicao.processo AS p "
-            "WHERE p.status = 'P' "
+            "WHERE p.status = 'P' AND p.Cod_escritorio = 602 "
             "GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, p.uf, p.sigla_sistema, p.tribunal;"
         )
 
@@ -273,3 +273,18 @@ def nome_cliente(cod_cliente):
         return cliente[0]
     except Exception as err:
         logger.error(f"Erro ao capturar nome: {err}")
+
+def cliente_erro(ID_processo):
+    try:
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor()
+
+        db_cursor.execute("""UPDATE apidistribuicao.processo SET status = 'E' WHERE (ID_processo = %s)""", (ID_processo,))
+        logger.warning(f"Processo '{ID_processo}' marcado com 'E'! ")
+
+        db_connection.commit()
+        db_cursor.close()
+        db_connection.close()
+    
+    except Exception as err:
+        logger.error(f"erro ao atualizar Status de erro: {err}")
