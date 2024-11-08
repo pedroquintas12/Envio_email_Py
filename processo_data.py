@@ -193,14 +193,16 @@ def fetch_companies():
 # Atualiza o status do processo de envio e insere no banco o email enviado
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
                  data_do_dia, localizador_email, email_receiver, numero, permanent_url):
+     
     try:
     
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
-
+                #se não houver numero aplica uma string vazia
+                if not numero:
+                    numero = ""
                 db_cursor.execute("UPDATE processo SET status = 'S', modified_date = %s WHERE ID_processo = %s", (datetime.now(),processo_id))
-                db_cursor.execute("""
-                    INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
+                db_cursor.execute("""INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
                                               data_envio, localizador, email_envio, numero_envio, link_s3, data_hora_envio)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 

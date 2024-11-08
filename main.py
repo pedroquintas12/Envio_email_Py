@@ -90,7 +90,7 @@ def enviar_emails():
                 email_receiver = smtp_envio_test
             bcc_receivers = smtp_bcc_emails
             cc_receiver = smtp_cc_emails
-            subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d-%m-%y')} - {cliente}"
+            subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
 
             # Envia o e-mail
             send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject)
@@ -132,7 +132,7 @@ def enviar_emails():
                                 data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number[0]['numero'],permanent_url)
                 if env == 'production': 
                     status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number[0]['numero'],permanent_url)
+                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number,permanent_url)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
     except Exception as err:
@@ -162,8 +162,9 @@ schedule.every().day.at("16:00").do(enviar_emails)
 
 if __name__ == "__main__":
 
-    Atualizar_lista_pendetes()
+    enviar_emails()
+    # Atualizar_lista_pendetes()
 
-    while True:
-        schedule.run_pending()  # Executa as tarefas agendadas
-        time.sleep(1)
+    # while True:
+    #     schedule.run_pending()  # Executa as tarefas agendadas
+    #     time.sleep(1)
