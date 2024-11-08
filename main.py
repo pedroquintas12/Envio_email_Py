@@ -28,7 +28,7 @@ else:
 load_dotenv(os.path.join(base_dir, 'config.env'))
 
 def enviar_emails():
-    try:
+    # try:
         data_do_dia = datetime.now()
         
         # Busca os dados dos clientes e processos
@@ -104,7 +104,7 @@ def enviar_emails():
             permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)
 
             if env == 'test':
-                cliente_number = [{"numero": "558197067420"}]
+                cliente_number = [{"numero": "5581997067420"}]
             #verifica se o cliente tem numero para ser enviado
             if not cliente_number:
                 logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
@@ -127,13 +127,16 @@ def enviar_emails():
 
             for processo in processos:
                 processo_id = processo['ID_processo']
-                status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number,permanent_url)
-            
+                if env == 'test':
+                    status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
+                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number[0]['numero'],permanent_url)
+                if env == 'production': 
+                    status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
+                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number[0]['numero'],permanent_url)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
-    except Exception as err:
-        logger.error(f"Erro ao executar o codigo: {err}")
+    # except Exception as err:
+    #     logger.error(f"Erro ao executar o codigo: {err}")
 
 
 # Atualiza a exibição

@@ -60,7 +60,7 @@ def fetch_autores_reus_links(tipo, processes):
                                FROM apidistribuicao.processo_reu 
                                WHERE ID_processo IN (%s)"""
                 elif tipo == "links":
-                    query = """SELECT ID_processo, link_documento as link_doc, tipo as tipoLink 
+                    query = """SELECT ID_processo, ID_Doc_incial as id_link, link_documento as link_doc, tipo as tipoLink 
                                FROM apidistribuicao.processo_docinicial 
                                WHERE ID_processo IN (%s) AND doc_peticao_inicial=0"""
                 
@@ -193,10 +193,13 @@ def fetch_companies():
 # Atualiza o status do processo de envio e insere no banco o email enviado
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
                  data_do_dia, localizador_email, email_receiver, numero, permanent_url):
-    try:
+    # try:
+    
+    
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
-                db_cursor.execute("UPDATE processo SET status = 'S' WHERE ID_processo = %s", (processo_id,))
+
+                db_cursor.execute("UPDATE processo SET status = 'S', modified_date = %s WHERE ID_processo = %s", (datetime.now(),processo_id))
                 db_cursor.execute("""
                     INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
                                               data_envio, localizador, email_envio, numero_envio, link_s3, data_hora_envio)
@@ -206,8 +209,8 @@ def status_envio(processo_id, numero_processo, cod_escritorio, localizador_proce
                 
                 db_connection.commit()
 
-    except Exception as err:
-        logger.error(f"Erro ao atualizar o status de envio do email: {err}")
+    # except Exception as err:
+    #     logger.error(f"Erro ao atualizar o status de envio do email: {err}")
 
 def nome_cliente(cod_cliente):
     try:
@@ -225,7 +228,7 @@ def cliente_erro(ID_processo):
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
-                db_cursor.execute("""UPDATE apidistribuicao.processo SET status = 'E' WHERE (ID_processo = %s)""", (ID_processo,))
+                db_cursor.execute("""UPDATE apidistribuicao.processo SET status = 'E', modified_date = %s  WHERE (ID_processo = %s)""", (datetime.now(),ID_processo))
                 logger.warning(f"Processo '{ID_processo}' marcado com 'E'! ")
 
                 db_connection.commit()
