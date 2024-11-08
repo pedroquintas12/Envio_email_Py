@@ -16,6 +16,8 @@ from processo_data import cliente_erro
 import sys
 import os
 from dotenv import load_dotenv
+import locale
+import cProfile
 
 #captura o ambiente de execução 
 if getattr(sys, 'frozen', False):
@@ -28,7 +30,7 @@ load_dotenv(os.path.join(base_dir, 'config.env'))
 def enviar_emails():
     try:
         data_do_dia = datetime.now()
-
+        
         # Busca os dados dos clientes e processos
         clientes_data = fetch_processes_and_clients()
 
@@ -49,12 +51,14 @@ def enviar_emails():
         smtp_config = (smtp_host, smtp_port, smtp_user, smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,logo)
 
         for cliente, processos in clientes_data.items():
+            locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
             ID_processo = processos[0]['ID_processo']
             cliente_STATUS = processos[0]['cliente_status']
             cod_cliente = processos[0]['cod_escritorio']
             cliente_number = fetch_numero(cod_cliente)
             emails = fetch_email(cod_cliente)
             env = os.getenv('ENV')
+            
 
             #Se o cliente não tem email para ser enviado, logo esta "bloquado"
             if not emails:
@@ -86,7 +90,7 @@ def enviar_emails():
                 email_receiver = smtp_envio_test
             bcc_receivers = smtp_bcc_emails
             cc_receiver = smtp_cc_emails
-            subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
+            subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d-%m-%y')} - {cliente}"
 
             # Envia o e-mail
             send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject)
@@ -99,6 +103,8 @@ def enviar_emails():
 
             permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)
 
+            if env == 'test':
+                cliente_number = [{"numero": "558197067420"}]
             #verifica se o cliente tem numero para ser enviado
             if not cliente_number:
                 logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
@@ -115,7 +121,7 @@ def enviar_emails():
                                             whatslogo
                                             )
 
-            logger.info(f"""E-mail enviado para {cliente} às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
+            logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")
 
 
@@ -125,7 +131,7 @@ def enviar_emails():
                                 data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number,permanent_url)
             
 
-        logger.info(f"\nEnvio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
+        logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
     except Exception as err:
         logger.error(f"Erro ao executar o codigo: {err}")
 

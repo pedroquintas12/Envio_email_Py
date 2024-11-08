@@ -1,290 +1,235 @@
-import uuid
 from datetime import datetime
-import mysql.connector
-import logging
 from logger_config import logger
-import os
-from db_conexão import get_db_connection
-from db_conexão import get_db_ligcontato
+from db_conexão import get_db_connection, get_db_ligcontato
+from concurrent import futures
+import concurrent
 
-#captura todos os dados do processo
+# Captura todos os dados do processo
 def fetch_processes_and_clients():
-
-
-    db_connection = get_db_connection()
-    db_cursor = db_connection.cursor()
-
+    clientes_data = {}
     try:
-        query = (
-            "SELECT p.Cod_escritorio, p.numero_processo, "
-            "MAX(p.data_distribuicao) as data_distribuicao, "
-            "p.orgao_julgador, p.tipo_processo, p.status, "
-            "p.uf, p.sigla_sistema, MAX(p.instancia), p.tribunal, MAX(p.ID_processo), MAX(p.LocatorDB), p.tipo_processo "
-            "FROM apidistribuicao.processo AS p "
-            "WHERE p.status = 'P' AND p.Cod_escritorio = 602 "
-            "GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, p.uf, p.sigla_sistema, p.tribunal;"
-        )
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                # Consulta para buscar todos os processos
+                db_cursor.execute(""" 
+                    SELECT p.Cod_escritorio, p.numero_processo, 
+                           MAX(p.data_distribuicao) as data_distribuicao, 
+                           p.orgao_julgador, p.tipo_processo, p.status, 
+                           p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, p.tribunal, 
+                           p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
+                           p.tipo_processo 
+                    FROM apidistribuicao.processo AS p 
+                    WHERE p.status = 'P'
+                    GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
+                             p.uf, p.sigla_sistema, p.tribunal,ID_processo;
+                """)
+                
+                processes = db_cursor.fetchall()
+                
+                # Pré-carrega autores, réus e links para todos os processos
+                autor_dict = fetch_autores_reus_links("autor", processes)
+                reu_dict = fetch_autores_reus_links("reu", processes)
+                links_dict = fetch_autores_reus_links("links", processes)
 
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
-        clientes_data = {}
+                #utiliza o multithreds para otimizar o processamento de dados
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    futures = []
+                    for process in processes:
+                        futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict))
 
-        for result in results:
-            # Process the result and add to clientes_data
-            process_result(result, clientes_data)
-
-        return clientes_data
+                    # Wait for all futures to finish
+                    concurrent.futures.wait(futures)
 
     except Exception as err:
         logger.error(f"Erro ao executar a consulta: {err}")
-        return {}
-    finally:
-        db_cursor.close()
-        db_connection.close()
 
-def process_result(result, clientes_data):
-    clienteVSAP = nome_cliente(result[0])
-    num_processo = result[1]
-    data_distribuicao = datetime.strptime(str(result[2]), '%Y-%m-%d').strftime('%d/%m/%Y')
-    tribunal = result[9]
-    uf = result[6]
-    instancia = result[8]
-    comarca = result[7]
+    return clientes_data
 
-    # Collect for the process
-    links_list = fetch_links(result[10])
-    autor_list = fetch_autor(result[10])
-    reu_list = fetch_reu(result[10])
-    status_cliente = validar_cliente(result[0])
+def fetch_autores_reus_links(tipo, processes):
+    data_dict = {}
+    ids = [process['ID_processo'] for process in processes]
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                if tipo == "autor":
+                    query = """SELECT ID_processo, nome as nomeAutor 
+                               FROM apidistribuicao.processo_autor 
+                               WHERE ID_processo IN (%s)"""
+                elif tipo == "reu":
+                    query = """SELECT ID_processo, nome as nomeReu 
+                               FROM apidistribuicao.processo_reu 
+                               WHERE ID_processo IN (%s)"""
+                elif tipo == "links":
+                    query = """SELECT ID_processo, link_documento as link_doc, tipo as tipoLink 
+                               FROM apidistribuicao.processo_docinicial 
+                               WHERE ID_processo IN (%s) AND doc_peticao_inicial=0"""
+                
+                # Converter a lista de IDs para um formato que possa ser usado no SQL
+                format_strings = ','.join(['%s'] * len(ids))
+                query = query % format_strings  # Substituir o %s pelo número correto de %s
+                
+                db_cursor.execute(query, tuple(ids))  # Passar a lista de IDs como parâmetros
+                results = db_cursor.fetchall()
+                
+                for row in results:
+                    process_id = row['ID_processo']
+                    if process_id not in data_dict:
+                        data_dict[process_id] = []
+                    data_dict[process_id].append(row)
+    except Exception as err:
+        logger.error(f"Erro ao carregar {tipo}: {err}")
+    
+    return data_dict
 
-    # Add process data to the clients' data
+def process_result(process, clientes_data, autor_dict, reu_dict, links_dict):
+    clienteVSAP = nome_cliente(process['Cod_escritorio'])
+    num_processo = process['numero_processo']
+    data_distribuicao = process['data_distribuicao'].strftime('%d/%m/%Y')
+    tribunal = process['tribunal']
+    uf = process['uf']
+    instancia = process['instancia']
+    comarca = process['sigla_sistema']
+    
+    # Pega os autores, réus e links dos dicionários pré-carregados
+    autor_list = autor_dict.get(process['ID_processo'], [{"nomeAutor": "[Nenhum dado disponível]"}])
+    reu_list = reu_dict.get(process['ID_processo'], [{"nomeReu": "[Nenhum dado disponível]"}])
+    links_list = links_dict.get(process['ID_processo'], [])
+
+    status_cliente = validar_cliente(process['Cod_escritorio'])
+
+    # Adiciona os dados ao cliente
     if clienteVSAP not in clientes_data:
         clientes_data[clienteVSAP] = []
 
     clientes_data[clienteVSAP].append({
-        'ID_processo' : result[10],
-        'cod_escritorio': result[0],
+        'ID_processo': process['ID_processo'],
+        'cod_escritorio': process['Cod_escritorio'],
         'numero_processo': num_processo,
         'data_distribuicao': data_distribuicao,
-        'orgao': result[3],
-        'classe_judicial': result[4],
-        'autor': autor_list if autor_list else "[Nenhum dado disponível]",
-        'reu': reu_list if reu_list else "[Nenhum dado disponível]",
+        'orgao': process['orgao_julgador'],
+        'classe_judicial': process['tipo_processo'],
+        'autor': autor_list,
+        'reu': reu_list,
         'links': links_list,
         'tribunal': tribunal,
         'uf': uf,
         'instancia': instancia,
         'comarca': comarca,
-        'localizador': result[11],
-        'tipo_processo': result[12],
-        'cliente_status' : status_cliente
+        'localizador': process['LocatorDB'],
+        'tipo_processo': process['tipo_processo'],
+        'cliente_status': status_cliente
     })
-
-#captura os links do processo
-def fetch_links(process_id):
-    try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
-        
-        querylinks = "SELECT * FROM apidistribuicao.processo_docinicial WHERE ID_PROCESSO = %s AND doc_peticao_inicial= 0"
-        db_cursor.execute(querylinks, (process_id,))
-        results_links = db_cursor.fetchall()
-
-        links_list = []
-        for links in results_links:
-            id_link = links[1]
-            link_doc = links[2]
-            tipoLink = links[3]
-            links_list.append({'link_doc': link_doc,
-                                'tipoLink': tipoLink,
-                                'id_link': id_link})
-
-        db_cursor.close()
-        db_connection.close()
-
-        return links_list
-    except Exception as err:
-        logger.error(f"erro na consulta do documento inicial: {err}")
-
-#captura o autor pelo ID do processo
-def fetch_autor(process_id):
-    try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
-        
-        queryautor = "SELECT * FROM apidistribuicao.processo_autor WHERE ID_processo = %s"
-        db_cursor.execute(queryautor, (process_id,))
-        results_autor = db_cursor.fetchall()
-
-        autor_list= []
-        for autores in results_autor:
-            ID_autor = autores[1]
-            Cod_Polo = autores[2]
-            nome = autores[3]
-            autor_list.append({'id_autor':ID_autor,
-                            'cod_polo':Cod_Polo,
-                            'nomeAutor':nome})
-        db_cursor.close()
-        db_connection.close()
-
-        return autor_list
-    except Exception as err:
-        logger.error(f"erro na consulta do Autor: {err}")    
-
-#captura o reu pelo ID do processo
-def fetch_reu(process_id):
-    try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
-        
-        queryreu = "SELECT * FROM apidistribuicao.processo_reu WHERE ID_processo = %s"
-        db_cursor.execute(queryreu, (process_id,))
-        results_reu = db_cursor.fetchall()
-
-        reu_list = []
-        for reus in results_reu:
-            ID_reu= reus[1]
-            Cod_polo = reus[2]
-            nome = reus[3]
-            reu_list.append({'id_reu': ID_reu,
-                            'cod_polo': Cod_polo,
-                            'nomeReu':nome})
-        db_cursor.close()
-        db_connection.close()
-
-        return reu_list
-    except Exception as err:
-         logger.error(f"erro na consulta do Reu: {err}")
-
-#captura os numeros para envio
+# Captura os números para envio
 def fetch_numero(cod_cliente):
+    list_numbers = []
     try:
-        db_connection = get_db_ligcontato()
-        db_cursor_lig = db_connection.cursor()
+        with get_db_ligcontato() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("""
+                    SELECT nw.`number` 
+                    FROM offices_whatsapp_numbers nw 
+                    JOIN offices e ON nw.offices_id = e.offices_id 
+                    WHERE e.office_code = %s AND nw.status = 'L' AND nw.deleted = 0 
+                """, (cod_cliente,))
+                cliente_number = db_cursor.fetchall()
 
-        db_cursor_lig.execute("""SELECT nw.`number` FROM offices_whatsapp_numbers nw JOIN offices e ON nw.offices_id = e.offices_id 
-                              WHERE e.office_code = %s AND nw.status = 'L' AND nw.deleted = 0 """,(cod_cliente,))
-        cliente_number = db_cursor_lig.fetchall()
-        list_numbers = []
+                list_numbers = [{'numero': number[0]} for number in cliente_number]
 
-        for number in cliente_number:
-            numero = number[0]
-            list_numbers.append({'numero': numero})
-        db_connection.close()
-        db_cursor_lig.close()
-
-        return list_numbers
     except Exception as err:
-        logger.error(f"erro na consulta do numero de celular: {err}")
+        logger.error(f"Erro na consulta do número de celular: {err}")
 
-#faz a verficação se o cliente esta ativo (L) ou Bloqueado (B)
+    return list_numbers
+
+# Faz a verificação se o cliente está ativo (L) ou Bloqueado (B)
 def validar_cliente(cod_cliente):
     try:
-        db_connection = get_db_ligcontato()
-        db_cursor_lig = db_connection.cursor()
+        with get_db_ligcontato() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("SELECT status FROM offices WHERE office_code = %s", (cod_cliente,))
+                cliente_STATUS = db_cursor.fetchone()
+                
+                return cliente_STATUS[0] if cliente_STATUS else None
 
-        db_cursor_lig.execute("SELECT status FROM offices WHERE office_code = %s",(cod_cliente,))
-        cliente_STATUS = db_cursor_lig.fetchone()
-
-        db_connection.close()
-        db_cursor_lig.close()
-
-        return cliente_STATUS
     except Exception as err:
-        logger.error(f"erro na consulta do status do cliente: {err}")
+        logger.error(f"Erro na consulta do status do cliente: {err}")
 
-#captura emails para serem enviados 
+# Captura emails para serem enviados 
 def fetch_email(cod_cliente):
-     try:
-        db_connection = get_db_ligcontato()
-        db_cursor_lig = db_connection.cursor()
-        #capturar email para envio
-        db_cursor_lig.execute("""SELECT GROUP_CONCAT(DISTINCT oe.email ORDER BY oe.email SEPARATOR ', ') 
-                               FROM offices_emails oe JOIN offices e ON oe.offices_id = e.offices_id WHERE e.office_code = %s
-                              AND oe.status = 'L' AND oe.deleted = 0 AND oe.receive_distribution = 1""",(cod_cliente,))
-        email_cliente = db_cursor_lig.fetchone()
+    try:
+        with get_db_ligcontato() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("""
+                    SELECT GROUP_CONCAT(DISTINCT oe.email ORDER BY oe.email SEPARATOR ', ') 
+                    FROM offices_emails oe 
+                    JOIN offices e ON oe.offices_id = e.offices_id 
+                    WHERE e.office_code = %s
+                    AND oe.status = 'L' AND oe.deleted = 0 AND oe.receive_distribution = 1
+                """, (cod_cliente,))
+                email_cliente = db_cursor.fetchone()
 
-        db_cursor_lig.close()
-        db_connection.close()
+                return email_cliente[0] if email_cliente else None
+    except Exception as err:
+        logger.error(f"Erro na consulta do email: {err}")
 
-        return email_cliente[0]
-     
-     except Exception as err:
-         logger.error(f"erro na consulta do email: {err}")
-         
-#puxa todos os dados necessario para envio de email e Whatsapp (SMTP/URL API)
+# Puxa todos os dados necessários para envio de email e WhatsApp (SMTP/URL API)
 def fetch_companies():
     try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
-
-        # Puxar dados de configuração do companies
-        db_cursor.execute("""SELECT ID_lig, url_Sirius, sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, 
-                          smtp_from_name,smtp_reply_to, smtp_cc_emails,smtp_bcc_emails,smtp_envio_test ,url_thumbnail_whatsapp, url_thumbnail FROM companies""")
-        config = db_cursor.fetchone()
-
-        db_cursor.close()
-        db_connection.close()
-
-        return config
+        with get_db_connection() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("""
+                    SELECT ID_lig, url_Sirius, sirius_Token, aws_s3_access_key, aws_s3_secret_key, bucket_s3,
+                           smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name,
+                           smtp_reply_to, smtp_cc_emails, smtp_bcc_emails, smtp_envio_test, url_thumbnail_whatsapp, url_thumbnail 
+                    FROM companies
+                """)
+                config = db_cursor.fetchone()
+                
+                return config
 
     except Exception as err:
         logger.error(f"Erro na consulta do banco companies: {err}")
         exit()
 
-#atualiza o status do processo de envio e insere no banco o email enviado
-def status_envio(processo_id,numero_processo,cod_escritorio,localizador_processo,
-                 data_do_dia,localizador_email,email_receiver,numero,permanent_url):
+# Atualiza o status do processo de envio e insere no banco o email enviado
+def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
+                 data_do_dia, localizador_email, email_receiver, numero, permanent_url):
     try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
+        with get_db_connection() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("UPDATE processo SET status = 'S' WHERE ID_processo = %s", (processo_id,))
+                db_cursor.execute("""
+                    INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
+                                              data_envio, localizador, email_envio, numero_envio, link_s3, data_hora_envio)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
+                      localizador_email, email_receiver, numero, permanent_url, datetime.now()))
+                
+                db_connection.commit()
 
-        db_cursor.execute("UPDATE processo SET status = 'S' WHERE ID_processo = %s", (processo_id,))
-        db_cursor.execute("""INSERT INTO envio_emails (ID_processo, numero_processo, 
-                            cod_escritorio, localizador_processo, data_envio, localizador, email_envio, numero_envio, link_s3, data_hora_envio)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s)""",
-                            (processo_id,   
-                            numero_processo,
-                            cod_escritorio,
-                            localizador_processo, 
-                            data_do_dia,
-                            localizador_email, 
-                            email_receiver,
-                            ','.join(cliente['numero'] for cliente in numero),
-                            permanent_url,
-                            datetime.now()))
-
-        db_connection.commit()
-        db_cursor.close()
-        db_connection.close()
-    except mysql.connector.Error as err:
-        logger.error(f"Erro ao atualizar o status ou registrar o envio: {err}")
+    except Exception as err:
+        logger.error(f"Erro ao atualizar o status de envio do email: {err}")
 
 def nome_cliente(cod_cliente):
     try:
-        db_connection = get_db_ligcontato()
-        db_cursor_lig = db_connection.cursor()
+        with get_db_ligcontato() as db_connection:
+            with db_connection.cursor() as db_cursor:
 
-        db_cursor_lig.execute("""SELECT description FROM offices WHERE office_code = %s""", (cod_cliente,))
-        cliente = db_cursor_lig.fetchone()
-        db_cursor_lig.close()
-        db_connection.close()
+                db_cursor.execute("""SELECT description FROM offices WHERE office_code = %s""", (cod_cliente,))
+                cliente = db_cursor.fetchone()
 
-        return cliente[0]
+                return cliente[0]
     except Exception as err:
         logger.error(f"Erro ao capturar nome: {err}")
 
 def cliente_erro(ID_processo):
     try:
-        db_connection = get_db_connection()
-        db_cursor = db_connection.cursor()
+        with get_db_connection() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("""UPDATE apidistribuicao.processo SET status = 'E' WHERE (ID_processo = %s)""", (ID_processo,))
+                logger.warning(f"Processo '{ID_processo}' marcado com 'E'! ")
 
-        db_cursor.execute("""UPDATE apidistribuicao.processo SET status = 'E' WHERE (ID_processo = %s)""", (ID_processo,))
-        logger.warning(f"Processo '{ID_processo}' marcado com 'E'! ")
+                db_connection.commit()
 
-        db_connection.commit()
-        db_cursor.close()
-        db_connection.close()
     
     except Exception as err:
         logger.error(f"erro ao atualizar Status de erro: {err}")
