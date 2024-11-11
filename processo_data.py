@@ -19,17 +19,17 @@ def fetch_processes_and_clients():
                            p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
                            p.tipo_processo 
                     FROM apidistribuicao.processo AS p 
-                    WHERE p.status = 'P'
+                    WHERE p.status = 'P' 
                     GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
                              p.uf, p.sigla_sistema, p.tribunal,ID_processo;
                 """)
                 
                 processes = db_cursor.fetchall()
-                
+                if processes:
                 # Pré-carrega autores, réus e links para todos os processos
-                autor_dict = fetch_autores_reus_links("autor", processes)
-                reu_dict = fetch_autores_reus_links("reu", processes)
-                links_dict = fetch_autores_reus_links("links", processes)
+                    autor_dict = fetch_autores_reus_links("autor", processes)
+                    reu_dict = fetch_autores_reus_links("reu", processes)
+                    links_dict = fetch_autores_reus_links("links", processes)
 
                 #utiliza o multithreds para otimizar o processamento de dados
                 with concurrent.futures.ThreadPoolExecutor() as executor:
