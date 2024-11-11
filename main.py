@@ -162,9 +162,8 @@ schedule.every().day.at("16:00").do(enviar_emails)
 
 if __name__ == "__main__":
 
-    enviar_emails()
-    # Atualizar_lista_pendetes()
+    Atualizar_lista_pendetes()
 
-    # while True:
-    #     schedule.run_pending()  # Executa as tarefas agendadas
-    #     time.sleep(1)
+    while True:
+        schedule.run_pending()  # Executa as tarefas agendadas
+        time.sleep(1)

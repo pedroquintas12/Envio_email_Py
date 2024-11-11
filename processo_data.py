@@ -27,9 +27,10 @@ def fetch_processes_and_clients():
                 processes = db_cursor.fetchall()
                 
                 # Pré-carrega autores, réus e links para todos os processos
-                autor_dict = fetch_autores_reus_links("autor", processes)
-                reu_dict = fetch_autores_reus_links("reu", processes)
-                links_dict = fetch_autores_reus_links("links", processes)
+                if processes:#verifica se tem algum processo para pré-carregar 
+                    autor_dict = fetch_autores_reus_links("autor", processes)
+                    reu_dict = fetch_autores_reus_links("reu", processes)
+                    links_dict = fetch_autores_reus_links("links", processes)
 
                 #utiliza o multithreds para otimizar o processamento de dados
                 with concurrent.futures.ThreadPoolExecutor() as executor:
