@@ -193,7 +193,7 @@ def fetch_companies():
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
                  data_do_dia, localizador_email, email_receiver, numero, permanent_url):
 
-    # try:
+    try:
         if not numero:
             numero = ""
         with get_db_connection() as db_connection:
@@ -209,8 +209,8 @@ def status_envio(processo_id, numero_processo, cod_escritorio, localizador_proce
                 
                 db_connection.commit()
 
-    # except Exception as err:
-    #     logger.error(f"Erro ao atualizar o status de envio do email: {err}")
+    except Exception as err:
+        logger.error(f"Erro ao atualizar o status de envio do email: {err}")
 
 def nome_cliente(cod_cliente):
     try:

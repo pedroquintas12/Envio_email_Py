@@ -27,7 +27,7 @@ else:
 load_dotenv(os.path.join(base_dir, 'config.env'))
 
 def enviar_emails():
-    # try:
+    try:
         data_do_dia = datetime.now()
 
         # Busca os dados dos clientes e processos
@@ -134,8 +134,8 @@ def enviar_emails():
                             data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
-    # except Exception as err:
-    #     logger.error(f"Erro ao executar o codigo: {err}")
+    except Exception as err:
+        logger.error(f"Erro ao executar o codigo: {err}")
 
 
 # Atualiza a exibição
