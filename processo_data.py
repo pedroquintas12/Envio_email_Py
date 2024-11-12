@@ -132,7 +132,6 @@ def fetch_numero(cod_cliente):
                     WHERE e.office_code = %s AND nw.status = 'L' AND nw.deleted = 0 
                 """, (cod_cliente,))
                 cliente_number = db_cursor.fetchall()
-
                 list_numbers = [{'numero': number[0]} for number in cliente_number]
 
     except Exception as err:
@@ -193,9 +192,10 @@ def fetch_companies():
 # Atualiza o status do processo de envio e insere no banco o email enviado
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
                  data_do_dia, localizador_email, email_receiver, numero, permanent_url):
-    try:
-    
-    
+
+    # try:
+        if not numero:
+            numero = ""
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
 
@@ -209,8 +209,8 @@ def status_envio(processo_id, numero_processo, cod_escritorio, localizador_proce
                 
                 db_connection.commit()
 
-    except Exception as err:
-        logger.error(f"Erro ao atualizar o status de envio do email: {err}")
+    # except Exception as err:
+    #     logger.error(f"Erro ao atualizar o status de envio do email: {err}")
 
 def nome_cliente(cod_cliente):
     try:

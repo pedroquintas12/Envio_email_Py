@@ -27,7 +27,7 @@ else:
 load_dotenv(os.path.join(base_dir, 'config.env'))
 
 def enviar_emails():
-    try:
+    # try:
         data_do_dia = datetime.now()
 
         # Busca os dados dos clientes e processos
@@ -103,7 +103,7 @@ def enviar_emails():
 
             if env == 'test':
                 cliente_number = [{"numero": "5581997067420"}]
-            #verifica se o cliente tem numero para ser enviado
+            # verifica se o cliente tem numero para ser enviado
             if not cliente_number:
                 logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
             else:
@@ -122,19 +122,20 @@ def enviar_emails():
             logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")
 
-
             for processo in processos:
                 processo_id = processo['ID_processo']
-                if env == 'test':
-                    status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number[0]['numero'],permanent_url)
-                if env == 'production': 
-                    status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, cliente_number,permanent_url)
+                #trasforma a lista numero em uma string para inserir no banco de dados
+                if cliente_number and isinstance(cliente_number, list):
+                    numero = ', '.join(item['numero'] for item in cliente_number if 'numero' in item)
+                else:
+                    numero = ""   
+
+                status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
+                            data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
-    except Exception as err:
-        logger.error(f"Erro ao executar o codigo: {err}")
+    # except Exception as err:
+    #     logger.error(f"Erro ao executar o codigo: {err}")
 
 
 # Atualiza a exibição
@@ -161,8 +162,9 @@ schedule.every().day.at("16:00").do(enviar_emails)
 
 if __name__ == "__main__":
 
-    Atualizar_lista_pendetes()
+    enviar_emails()
+    # Atualizar_lista_pendetes()
 
-    while True:
-        schedule.run_pending()  # Executa as tarefas agendadas
-        time.sleep(1)
+    # while True:
+    #     schedule.run_pending()  # Executa as tarefas agendadas
+    #     time.sleep(1)
