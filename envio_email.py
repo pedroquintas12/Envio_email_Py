@@ -1,0 +1,164 @@
+from queue import Queue
+from datetime import datetime
+import threading
+from processo_data import fetch_processes_and_clients
+from template import generate_email_body
+from mail_sender import send_email
+import uuid
+from logger_config import logger
+from send_whatsapp import enviar_mensagem_whatsapp
+from uploud_To_S3 import upload_html_to_s3
+from processo_data import fetch_numero
+from processo_data import fetch_email
+from processo_data import fetch_companies
+from processo_data import status_envio
+from processo_data import status_processo
+from processo_data import cliente_erro
+import sys
+import os
+from dotenv import load_dotenv
+import locale
+from dateutil.relativedelta import relativedelta
+
+#captura o ambiente de execução 
+if getattr(sys, 'frozen', False):
+    base_dir = os.path.dirname(sys.executable)
+else:
+    base_dir = os.path.dirname(__file__)
+
+load_dotenv(os.path.join(base_dir, 'config.env'))
+
+
+def enviar_emails(data_inicio = None, data_fim=None):
+    try:
+        data_do_dia = datetime.now()
+        
+        # Busca os dados dos clientes e processos
+        clientes_data = fetch_processes_and_clients(data_inicio,data_fim)
+        logger.info("passou")
+
+        contador_Inativos = 0
+
+        total_escritorios = len(clientes_data)  
+        #recupera dos dados do comapanies
+        config = fetch_companies()
+
+        if config:
+                ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config
+        else:
+                logger.warning("Configuração SMTP não encontrada.")
+                exit()
+
+
+        # Configuração do SMTP
+        smtp_config = (smtp_host, smtp_port, smtp_user, smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,logo)
+
+        for cliente, processos in clientes_data.items():
+            locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+            ID_processo = processos[0]['ID_processo']
+            cliente_STATUS = processos[0]['cliente_status']
+            cod_cliente = processos[0]['cod_escritorio']
+            cliente_number = fetch_numero(cod_cliente)
+            emails = fetch_email(cod_cliente)
+            env = os.getenv('ENV')
+            
+
+            #Se o cliente não tem email para ser enviado, logo esta "bloquado"
+            if not emails:
+                logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou esta bloqueado")
+                contador_Inativos += 1
+                cliente_erro(ID_processo)
+                continue
+            #verifica se existe algum cliente com esse codigo VSAP
+            if not cliente_STATUS:
+                logger.warning(f"VSAP: {cod_cliente} não esta cadastrado na API email não enviado!")
+                contador_Inativos += 1
+                cliente_erro(ID_processo)
+                continue
+            #verifica se o Status dele esta Liberado(L)
+            if cliente_STATUS[0] != 'L':
+                logger.warning(f"VSAP: {cod_cliente} não esta ativo na API email não enviado!")
+                contador_Inativos += 1
+                cliente_erro(ID_processo)
+                continue
+            
+
+            
+            localizador = str(uuid.uuid4()) 
+
+            email_body = generate_email_body(cliente, processos, logo, localizador, data_do_dia)
+            if env == 'production':
+                email_receiver = emails
+            if env == 'test':
+                email_receiver = smtp_envio_test
+            bcc_receivers = smtp_bcc_emails
+            cc_receiver = smtp_cc_emails
+            if data_inicio and data_fim:
+                data_do_dia = datetime.now()
+                mes_anterior = data_do_dia - relativedelta(months=1)  # Subtrai 1 mês da data atual
+                nome_mes_anterior = mes_anterior.strftime('%B').upper()
+                subject = f"LIGCONTATO - FECHAMENTO DO MÊS {nome_mes_anterior} - {cliente}"
+            if not data_inicio and not data_fim:
+                subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
+
+            # Envia o e-mail
+            send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject)
+
+            # Gera e faz o upload do arquivo HTML para o S3
+            if env == 'production':
+                object_name = f"{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
+            if env == 'test':
+                object_name = f"test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
+
+            queue = Queue()
+
+            thread = threading.Thread(target=thread_function, args=(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key,queue))
+            thread.start()
+            thread.join()
+
+            #retorna o link em uma queue
+            permanent_url = queue.get()
+
+            if env == 'test':
+                cliente_number = [{"numero": "5581997067420"}]
+            #verifica se o cliente tem numero para ser enviado
+            if not cliente_number:
+                logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
+            else:
+                for numero in cliente_number:
+                    #envia a mensagem via whatsapp
+                    enviar_mensagem_whatsapp(ID_lig,
+                                            url_Sirius,
+                                            sirius_Token,
+                                            numero['numero'],
+                                            permanent_url,
+                                            f"Distribuição de novas ações - {cliente}",
+                                            f"Total: {len(processos)} Distribuições",
+                                            whatslogo
+                                            )
+
+            logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
+                            \n---------------------------------------------------""")
+
+
+            for processo in processos:
+                processo_id = processo['ID_processo']
+
+                if cliente_number and isinstance(cliente_number, list):
+                    numero = ', '.join(item['numero'] for item in cliente_number if 'numero' in item)
+                else:
+                    numero = "Cliente não tem número cadastrado na API"  
+                status_processo(processo_id)
+                status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
+                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url,email_body)
+
+        logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
+    except Exception as err:
+        logger.error(f"Erro ao executar o codigo: {err}")
+def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, queue):
+    try:
+        permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)
+        queue.put(permanent_url)  # Coloca o URL na fila para a função principal
+    except Exception as e:
+        logger.error(f"Erro ao enviar para S3: {e}")
+        queue.put(None)

@@ -3,46 +3,64 @@ from logger_config import logger
 from db_conexão import get_db_connection, get_db_ligcontato
 from concurrent import futures
 import concurrent
+import mysql.connector
 
 # Captura todos os dados do processo
-def fetch_processes_and_clients():
+def fetch_processes_and_clients(data_inicio, data_fim):
     clientes_data = {}
     try:
-        with get_db_connection() as db_connection:
-            with db_connection.cursor(dictionary=True) as db_cursor:
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
                 # Consulta para buscar todos os processos
-                db_cursor.execute(""" 
+        query=""" 
                     SELECT p.Cod_escritorio, p.numero_processo, 
-                           MAX(p.data_distribuicao) as data_distribuicao, 
-                           p.orgao_julgador, p.tipo_processo, p.status, 
-                           p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, p.tribunal, 
-                           p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
-                           p.tipo_processo 
-                    FROM apidistribuicao.processo AS p 
-                    WHERE p.status = 'P'
-                    GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
-                             p.uf, p.sigla_sistema, p.tribunal,ID_processo;
-                """)
+                        MAX(p.data_distribuicao) as data_distribuicao, 
+                        p.orgao_julgador, p.tipo_processo, p.status, 
+                        p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, p.tribunal, 
+                        p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
+                        p.tipo_processo 
+                    FROM apidistribuicao.processo AS p """
                 
-                processes = db_cursor.fetchall()
-                
-                # Pré-carrega autores, réus e links para todos os processos
-                if processes:#verifica se tem algum processo para pré-carregar 
-                    autor_dict = fetch_autores_reus_links("autor", processes)
-                    reu_dict = fetch_autores_reus_links("reu", processes)
-                    links_dict = fetch_autores_reus_links("links", processes)
+        if data_inicio and data_fim:
+                query += "WHERE p.status = 'S' AND p.data_insercao between  %s and %s "
 
-                #utiliza o multithreds para otimizar o processamento de dados
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    futures = []
-                    for process in processes:
-                        futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict))
+        if not data_inicio and not data_fim:
+                query += "WHERE p.status = 'P'"
+            
+        query+= """GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
+                            p.uf, p.sigla_sistema, p.tribunal,ID_processo;
+                """
+        if data_inicio and data_fim:
+            db_cursor.execute(query, (data_inicio, data_fim))
+        else:
+            db_cursor.execute(query)
 
-                    # Wait for all futures to finish
-                    concurrent.futures.wait(futures)
+        processes = db_cursor.fetchall()
 
-    except Exception as err:
+        if processes:
+        # Pré-carrega autores, réus e links para todos os processos
+            autor_dict = fetch_autores_reus_links("autor", processes)
+            reu_dict = fetch_autores_reus_links("reu", processes)
+            links_dict = fetch_autores_reus_links("links", processes)
+
+        #utiliza o multithreds para otimizar o processamento de dados
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for process in processes:
+                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict))
+
+        # Wait for all futures to finish
+        concurrent.futures.wait(futures)
+
+    except mysql.connector.Error as err:
         logger.error(f"Erro ao executar a consulta: {err}")
+    except Exception as e:
+        logger.error(f"Erro inesperado: {e}")
+    finally:
+        if db_cursor:
+            db_cursor.close()
+        if db_connection:
+            db_connection.close()
 
     return clientes_data
 
@@ -54,16 +72,16 @@ def fetch_autores_reus_links(tipo, processes):
             with db_connection.cursor(dictionary=True) as db_cursor:
                 if tipo == "autor":
                     query = """SELECT ID_processo, nome as nomeAutor 
-                               FROM apidistribuicao.processo_autor 
-                               WHERE ID_processo IN (%s)"""
+                            FROM apidistribuicao.processo_autor 
+                            WHERE ID_processo IN (%s)"""
                 elif tipo == "reu":
                     query = """SELECT ID_processo, nome as nomeReu 
-                               FROM apidistribuicao.processo_reu 
-                               WHERE ID_processo IN (%s)"""
+                            FROM apidistribuicao.processo_reu 
+                            WHERE ID_processo IN (%s)"""
                 elif tipo == "links":
                     query = """SELECT ID_processo, ID_Doc_incial as id_link, link_documento as link_doc, tipo as tipoLink 
-                               FROM apidistribuicao.processo_docinicial 
-                               WHERE ID_processo IN (%s) AND doc_peticao_inicial=0"""
+                            FROM apidistribuicao.processo_docinicial 
+                            WHERE ID_processo IN (%s) AND doc_peticao_inicial=0"""
                 
                 # Converter a lista de IDs para um formato que possa ser usado no SQL
                 format_strings = ','.join(['%s'] * len(ids))
@@ -133,7 +151,6 @@ def fetch_numero(cod_cliente):
                     WHERE e.office_code = %s AND nw.status = 'L' AND nw.deleted = 0 
                 """, (cod_cliente,))
                 cliente_number = db_cursor.fetchall()
-
                 list_numbers = [{'numero': number[0]} for number in cliente_number]
 
     except Exception as err:
@@ -179,8 +196,8 @@ def fetch_companies():
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
                     SELECT ID_lig, url_Sirius, sirius_Token, aws_s3_access_key, aws_s3_secret_key, bucket_s3,
-                           smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name,
-                           smtp_reply_to, smtp_cc_emails, smtp_bcc_emails, smtp_envio_test, url_thumbnail_whatsapp, url_thumbnail 
+                        smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name,
+                        smtp_reply_to, smtp_cc_emails, smtp_bcc_emails, smtp_envio_test, url_thumbnail_whatsapp, url_thumbnail 
                     FROM companies
                 """)
                 config = db_cursor.fetchone()
@@ -190,29 +207,35 @@ def fetch_companies():
     except Exception as err:
         logger.error(f"Erro na consulta do banco companies: {err}")
         exit()
-
-# Atualiza o status do processo de envio e insere no banco o email enviado
-def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
-                 data_do_dia, localizador_email, email_receiver, numero, permanent_url):
-     
+# Atualiza o status do processo enviado
+def status_processo(processo_id):
     try:
-    
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
-                #se não houver numero aplica uma string vazia
-                if not numero:
-                    numero = ""
                 db_cursor.execute("UPDATE processo SET status = 'S', modified_date = %s WHERE ID_processo = %s", (datetime.now(),processo_id))
-                db_cursor.execute("""INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
-                                              data_envio, localizador, email_envio, numero_envio, link_s3, data_hora_envio)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+
+                db_connection.commit()
+    except Exception as err:
+        logger.error(f"Erro ao atulaizar status do email para 'S': {err}")
+
+# Insere no banco o email enviado
+def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
+                data_do_dia, localizador_email, email_receiver, numero, permanent_url,email_body):
+
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("""
+                    INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
+                                            data_envio, localizador, email_envio, numero_envio, link_s3, email_body, data_hora_envio)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
-                      localizador_email, email_receiver, numero, permanent_url, datetime.now()))
+                    localizador_email, email_receiver, numero, permanent_url,email_body, datetime.now()))
                 
                 db_connection.commit()
 
     except Exception as err:
-        logger.error(f"Erro ao atualizar o status de envio do email: {err}")
+        logger.error(f"Erro ao inserir o email no banco de dados: {err}")
 
 def nome_cliente(cod_cliente):
     try:
