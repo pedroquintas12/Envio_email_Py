@@ -29,7 +29,7 @@ else:
 load_dotenv(os.path.join(base_dir, 'config.env'))
 
 
-def enviar_emails(data_inicio = None, data_fim=None):
+def enviar_emails(data_inicio = None, data_fim=None, Origem=""):
     try:
         data_do_dia = datetime.now()
         
@@ -93,6 +93,7 @@ def enviar_emails(data_inicio = None, data_fim=None):
                 email_receiver = smtp_envio_test
             bcc_receivers = smtp_bcc_emails
             cc_receiver = smtp_cc_emails
+
             if data_inicio and data_fim:
                 data_do_dia = datetime.now()
                 mes_anterior = data_do_dia - relativedelta(months=1)  # Subtrai 1 mês da data atual
@@ -118,24 +119,24 @@ def enviar_emails(data_inicio = None, data_fim=None):
 
             #retorna o link em uma queue
             permanent_url = queue.get()
-
-            if env == 'test':
-                cliente_number = [{"numero": "5581997067420"}]
-            #verifica se o cliente tem numero para ser enviado
-            if not cliente_number:
-                logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
-            else:
-                for numero in cliente_number:
-                    #envia a mensagem via whatsapp
-                    enviar_mensagem_whatsapp(ID_lig,
-                                            url_Sirius,
-                                            sirius_Token,
-                                            numero['numero'],
-                                            permanent_url,
-                                            f"Distribuição de novas ações - {cliente}",
-                                            f"Total: {len(processos)} Distribuições",
-                                            whatslogo
-                                            )
+            if permanent_url:
+                if env == 'test':
+                    cliente_number = [{"numero": "5581997067420"}]
+                #verifica se o cliente tem numero para ser enviado
+                if not cliente_number:
+                    logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
+                else:
+                    for numero in cliente_number:
+                        #envia a mensagem via whatsapp
+                        enviar_mensagem_whatsapp(ID_lig,
+                                                url_Sirius,
+                                                sirius_Token,
+                                                numero['numero'],
+                                                permanent_url,
+                                                f"Distribuição de novas ações - {cliente}",
+                                                f"Total: {len(processos)} Distribuições",
+                                                whatslogo
+                                                )
 
             logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")
@@ -150,7 +151,7 @@ def enviar_emails(data_inicio = None, data_fim=None):
                     numero = "Cliente não tem número cadastrado na API"  
                 status_processo(processo_id)
                 status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url,email_body)
+                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url,Origem)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
     except Exception as err:
