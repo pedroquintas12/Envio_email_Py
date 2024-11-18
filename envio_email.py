@@ -96,7 +96,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 cc_receiver = smtp_cc_emails
             if Origem == 'API' :
                 email_receiver = email
-                bcc_receivers = []
+                bcc_receivers = None
                 cc_receiver = smtp_cc_emails
 
             if data_inicio and data_fim or Origem == 'Automatico':
@@ -105,7 +105,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 nome_mes_anterior = mes_anterior.strftime('%B').upper()
                 subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
             if Origem == 'API':
-                subject = f"LIGCONTATO - FECHAMENTO DO MÊS {nome_mes_anterior} - {cliente}"
+                subject = f"LIGCONTATO - DISTRIBUIÇÕES FECHAMENTO {nome_mes_anterior} - {cliente}"
                
 
             # Envia o e-mail
