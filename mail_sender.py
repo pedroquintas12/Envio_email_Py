@@ -15,9 +15,13 @@ def send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receive
     msg = MIMEMultipart()
     msg['From'] = from_address
     msg['To'] = email_receiver
-    msg['Bcc'] = bcc_receivers
+    
+    if bcc_receivers:
+        msg['Bcc'] = bcc_receivers
+    if cc_receiver:
+        msg['Cc'] = cc_receiver
+        
     msg['Subject'] = subject
-    msg['Cc'] = cc_receiver
     msg.attach(MIMEText(email_body, 'html'))
     try:
         # Envio do e-mail usando SMTP

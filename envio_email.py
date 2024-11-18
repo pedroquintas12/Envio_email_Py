@@ -2,7 +2,7 @@ from queue import Queue
 from datetime import datetime
 import threading
 from processo_data import fetch_processes_and_clients
-from template import generate_email_body
+from tamplates.template import generate_email_body
 from mail_sender import send_email
 import uuid
 from logger_config import logger
@@ -29,13 +29,12 @@ else:
 load_dotenv(os.path.join(base_dir, 'config.env'))
 
 
-def enviar_emails(data_inicio = None, data_fim=None, Origem=""):
+def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None):
     try:
         data_do_dia = datetime.now()
         
         # Busca os dados dos clientes e processos
-        clientes_data = fetch_processes_and_clients(data_inicio,data_fim)
-        logger.info("passou")
+        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo)
 
         contador_Inativos = 0
 
@@ -87,20 +86,27 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem=""):
             localizador = str(uuid.uuid4()) 
 
             email_body = generate_email_body(cliente, processos, logo, localizador, data_do_dia)
-            if env == 'production':
+            if env == 'production' or Origem == 'Automatico':
                 email_receiver = emails
-            if env == 'test':
+                bcc_receivers = smtp_bcc_emails
+                cc_receiver = smtp_cc_emails
+            if env == 'test' :
                 email_receiver = smtp_envio_test
-            bcc_receivers = smtp_bcc_emails
-            cc_receiver = smtp_cc_emails
+                bcc_receivers = smtp_bcc_emails
+                cc_receiver = smtp_cc_emails
+            if Origem == 'API' :
+                email_receiver = email
+                bcc_receivers = []
+                cc_receiver = smtp_cc_emails
 
-            if data_inicio and data_fim:
+            if data_inicio and data_fim or Origem == 'Automatico':
                 data_do_dia = datetime.now()
                 mes_anterior = data_do_dia - relativedelta(months=1)  # Subtrai 1 mês da data atual
                 nome_mes_anterior = mes_anterior.strftime('%B').upper()
-                subject = f"LIGCONTATO - FECHAMENTO DO MÊS {nome_mes_anterior} - {cliente}"
-            if not data_inicio and not data_fim:
                 subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
+            if Origem == 'API':
+                subject = f"LIGCONTATO - FECHAMENTO DO MÊS {nome_mes_anterior} - {cliente}"
+               
 
             # Envia o e-mail
             send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject)
@@ -120,7 +126,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem=""):
             #retorna o link em uma queue
             permanent_url = queue.get()
             if permanent_url:
-                if env == 'test':
+                if env == 'test' or Origem == 'API':
                     cliente_number = [{"numero": "5581997067420"}]
                 #verifica se o cliente tem numero para ser enviado
                 if not cliente_number:

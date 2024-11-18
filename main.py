@@ -10,6 +10,9 @@ from threading import Thread
 from flask import Flask, jsonify, request
 from envio_email import enviar_emails
 from logger_config import logger
+from flask_cors import CORS
+from processo_data import validar_dados
+
 
 # Atualiza a lista de pendentes:
 schedule.every().hour.do(Atualizar_lista_pendetes)
@@ -19,12 +22,13 @@ schedule.every().day.at("16:00").do(lambda:enviar_emails(data_inicio= None, data
 
 
 app = Flask(__name__)
+CORS(app)
 
-def enviar_emails_background(data_inicial=None, data_final=None, origem = "API"):
+def enviar_emails_background(data_inicial=None, data_final=None, origem = "API", email = None,codigo = None):
     try:
-        logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} e data_final={data_final}")
-        result = enviar_emails(data_inicial, data_final,origem)
-        if result:
+        logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} e data_final={data_final} codigo: {codigo} para o email: {email}")
+        result = enviar_emails(data_inicial, data_final,origem,email,codigo)
+        if result:  
             status, code = result
             logger.info(f"Envio de e-mails concluído com status={status}, code={code}")
     except Exception as e:
@@ -36,17 +40,67 @@ def api_enviar_emails():
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     data_final = data.get('data_final')
-
+    email = data.get('email')
     time.sleep(1)
-    # Retorna uma resposta imediata dizendo que a requisição foi recebida
-    response = jsonify({"message": "Envio em andamento, por favor aguarde."})
-    response.status_code = 200  # Código de aceitação, requisição recebida com sucesso.
 
-    # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API"))
-    thread.start()
+    if not data_inicial or not data_final:
+        response = jsonify({"Campos de 'data' obrigatorios!"})
+        response.status_code= 500       
+        return response
+    
+    if not email:
+        response = jsonify({"Campo 'email' obrigatorio!"})
+        response.status_code= 500
+        return response
 
-    return response
+    dados = validar_dados(data_inicial,data_final,codigo=None)
+
+    if not dados:
+        response = jsonify({"error":"Nenhum dado encontrato para o dia selecionado!"})
+        response.status_code= 500
+        return response
+    
+    if data_final and data_inicial and email:
+        response = jsonify({"message": "Dentro de alguns minutos o relatorio estará no seu email!"})
+        response.status_code = 200  
+        # Processamento em segundo plano
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email))
+        thread.start()
+        return response
+    
+@app.route('/relatorio_especifico', methods=['POST'], endpoint = '/relatorio_especifico')
+def api_enviar_emails():
+    data = request.get_json()
+    data_inicial = data.get('data_inicial')
+    data_final = data.get('data_final')
+    email = data.get('email')
+    codigo = data.get('codigo')
+    time.sleep(1)
+
+    if not data_inicial or not data_final:
+        response = jsonify({"Campos de 'data' obrigatorios!"})
+        response.status_code= 500       
+        return response
+    
+    if not email:
+        response = jsonify({"Campo 'email' obrigatorio!"})
+        response.status_code= 500
+        return response
+
+    dados = validar_dados(data_inicial,data_final,codigo)
+
+    if not dados:
+        response = jsonify({"error":"Nenhum dado encontrato para o dia selecionado!"})
+        response.status_code= 500
+        return response
+    
+    if data_final and data_inicial and email and codigo:
+        response = jsonify({"message": "Dentro de alguns minutos o relatorio estará no seu email!"})
+        response.status_code = 200  
+        # Processamento em segundo plano
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo))
+        thread.start()
+        return response
 
 def run_schedule():
 

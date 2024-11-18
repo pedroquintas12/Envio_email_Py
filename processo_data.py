@@ -6,7 +6,7 @@ import concurrent
 import mysql.connector
 
 # Captura todos os dados do processo
-def fetch_processes_and_clients(data_inicio, data_fim):
+def fetch_processes_and_clients(data_inicio, data_fim, codigo):
     clientes_data = {}
     try:
         db_connection = get_db_connection()
@@ -24,15 +24,21 @@ def fetch_processes_and_clients(data_inicio, data_fim):
         if data_inicio and data_fim:
                 query += "WHERE p.status = 'S' AND DATE(p.data_insercao) between  %s and %s "
 
-        if not data_inicio and not data_fim:
-                query += "WHERE p.status = 'P'"
+        if not data_inicio and not data_fim and not codigo:
+                query += "WHERE p.status = 'P' "
+        if codigo:
+            query+= "AND p.Cod_escritorio = %s "
             
         query+= """GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
                             p.uf, p.sigla_sistema, p.tribunal,ID_processo;
                 """
-        if data_inicio and data_fim:
+        if codigo:
+            db_cursor.execute(query, (data_inicio, data_fim, codigo)) 
+
+        if data_inicio and data_fim and not codigo:
             db_cursor.execute(query, (data_inicio, data_fim))
-        else:
+
+        if not data_inicio and not data_fim and not codigo:
             db_cursor.execute(query)
 
         processes = db_cursor.fetchall()
@@ -261,3 +267,37 @@ def cliente_erro(ID_processo):
     
     except Exception as err:
         logger.error(f"erro ao atualizar Status de erro: {err}")
+
+def validar_dados(data_inicio, data_fim, codigo):
+    try:
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+        # Consulta para validar se há processo para a data
+        query=""" 
+                    SELECT p.Cod_escritorio, p.numero_processo, 
+                        MAX(p.data_distribuicao) as data_distribuicao, 
+                        p.orgao_julgador, p.tipo_processo, p.status, 
+                        p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, p.tribunal, 
+                        p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
+                        p.tipo_processo 
+                    FROM apidistribuicao.processo AS p 
+                    WHERE p.status = 'S' AND DATE(p.data_insercao) between  %s and %s """
+        if codigo:
+            query+= """AND p.Cod_escritorio = %s """
+        query+= """ GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
+                            p.uf, p.sigla_sistema, p.tribunal,ID_processo;
+                """
+        if not codigo:
+            db_cursor.execute(query, (data_inicio, data_fim))
+        if codigo:
+            db_cursor.execute(query, (data_inicio, data_fim,codigo))
+            
+
+        processes = db_cursor.fetchall()
+        
+        return processes
+    except mysql.connector.Error as err:
+        logger.error(f"erro ao validar dados {err}")
+    except Exception as e:
+        logger.error(f"erro ao validar dados {e}")
+
