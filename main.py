@@ -12,7 +12,7 @@ from envio_email import enviar_emails
 from logger_config import logger
 from flask_cors import CORS
 from processo_data import validar_dados
-
+import requests
 
 # Atualiza a lista de pendentes:
 schedule.every().hour.do(Atualizar_lista_pendetes)
@@ -101,6 +101,35 @@ def api_enviar_emails():
         thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo))
         thread.start()
         return response
+    
+@app.route('/proxy/relatorio', methods = ['POST'])
+def proxy_relatorio():
+    data = request.get_json()
+
+    URL= 'http://26.154.23.230:8080/relatorio'
+
+    try:
+        response = requests.post(URL,json = data)
+        return jsonify(response.json()), response.status_code
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro ao encaminhar a requisição para o servidor real: {e}")
+        return jsonify({"error": "Erro ao comunicar com o servidor real"}), 500
+
+@app.route('/proxy/relatorio_especifico', methods=['POST'])
+def proxy_relatorio_especifico():
+    data = request.get_json()
+
+    URL= 'http://26.154.23.230:8080/relatorio_especifico'
+    
+    try:
+        response = requests.post(URL,json = data)
+        return jsonify(response.json()), response.status_code
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro ao encaminhar a requisição para o servidor real: {e}")
+        return jsonify({"error": "Erro ao comunicar com o servidor real"}), 500
+
 
 def run_schedule():
 
@@ -113,5 +142,5 @@ if __name__ == "__main__":
 
     Thread(target=run_schedule).start()
 
-app.run(host='localhost', port=8080, threaded=True)
+app.run(host='0.0.0.0', port=8080, threaded=True)
 

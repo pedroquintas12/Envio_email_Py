@@ -11,7 +11,7 @@
 
     try {
         // Enviar requisição para a API
-        const response = await fetch('http://localhost:8080/relatorio', {
+        const response = await fetch('http://26.154.23.230:8080/proxy/relatorio', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

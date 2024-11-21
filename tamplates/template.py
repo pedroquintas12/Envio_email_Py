@@ -26,8 +26,10 @@ def generate_email_body(cliente, processos,logo, localizador, data_do_dia):
                     <span><strong>Data de Distribuição: </strong></span>
                         <span>{processo['data_distribuicao']}</span>
                 </p>
+                <p>
                     <span><strong>Órgão: </strong></span>
                         <span>{processo['orgao']}</span>
+                </p>
                 <p>
                 <span><strong>Classe Judicial: </strong></span>
                     <span>{processo['classe_judicial']}</span>
@@ -38,42 +40,47 @@ def generate_email_body(cliente, processos,logo, localizador, data_do_dia):
         total_autores = len(autor_list)
         if total_autores > exibir_max:
             autores_exibidos = ', '.join(autor['nomeAutor'] for autor in autor_list[:exibir_max])
-            email_body += f"""  <p>
-                                    <span><strong>Polo Ativo: </strong></span>
-                                        <span>{autores_exibidos} (+{total_autores - exibir_max})</span>
-                                </p>"""
+            email_body += f"""
+                <p>
+                    <span><strong>Polo Ativo: </strong></span>
+                    <span>{autores_exibidos} (+{total_autores - exibir_max})</span>
+                </p>"""
         else:
             autores_exibidos = ', '.join(autor['nomeAutor'] for autor in autor_list)
-            email_body += f"""  <p>
-                                    <span><strong>Polo Ativo: </strong></span>
-                                        <span>{autores_exibidos}</span>
-                                </p>"""
+            email_body += f""" 
+                <p>
+                    <span><strong>Polo Ativo: </strong></span>
+                    <span>{autores_exibidos}</span>
+                </p>"""
         
         reu_list = processo['reu']
         total_reus = len(reu_list)
         if total_reus > exibir_max:
             reus_exibidos = ', '.join(reu['nomeReu'] for reu in reu_list[:exibir_max])
-            email_body += f"""  <p>
-                                    <span><strong>Polo Passivo: </strong></span>
-                                        <span>{reus_exibidos} (+{total_reus - exibir_max})</span>
-                                </p>"""
+            email_body += f"""  
+                <p>
+                    <span><strong>Polo Passivo: </strong></span>
+                    <span>{reus_exibidos} (+{total_reus - exibir_max})</span>
+                </p>"""
         else:
             reus_exibidos = ', '.join(reu['nomeReu'] for reu in reu_list)
-            email_body += f"""<p>
-                                <span><strong>Polo Passivo: </strong></span>
-                                    <span> {reus_exibidos}</span>
-                              </p>"""
+            email_body += f"""
+                <p>
+                    <span><strong>Polo Passivo: </strong></span>
+                    <span> {reus_exibidos}</span>
+                </p>"""
             
         email_body += """
-                    <div class="links">
-                        <p>
-                            <span><strong>Links:</strong></span>
-                        </p>
+            <div class="links">
+                <p>
+                    <span><strong>Links:</strong></span>
+                </p>
             """
         for link_info in processo['links']:
-            email_body += f"""<p>
-                                <span>({link_info["tipoLink"]}): <a href="{link_info["link_doc"]}">{processo["tipo_processo"]}({link_info["id_link"]})</a></span>
-                              </p>"""
+            email_body += f"""
+                <p>
+                    <span>({link_info["tipoLink"]}): <a href="{link_info["link_doc"]}">{processo["tipo_processo"]}({link_info["id_link"]})</a></span>
+                </p>"""
         email_body += "</div></div>"
 
     email_body = f"""
