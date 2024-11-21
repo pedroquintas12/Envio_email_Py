@@ -11,6 +11,7 @@ def Atualizar_lista_pendetes():
         logger.info(f"\nAguardando o horário de envio... (Atualizado: {datetime.now().strftime('%d-%m-%y %H:%M')})")
         logger.info(f"Total de escritórios a serem enviados: {total_escritorios}")
         for cliente, total_processos in total_processos_por_escritorio.items():
-            logger.info(f"Escritório: {cliente} - Total de processos: {total_processos}  ")
+            cod_escritorio = clientes_data[cliente][0]['cod_escritorio'] if clientes_data[cliente] else "N/A"
+            logger.info(f"Escritório: {cliente}({cod_escritorio}) - Total de processos: {total_processos}  ")
     except Exception as err:
         logger.error(f"erro ao atualizar lista de pendentes: {err}")

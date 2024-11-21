@@ -7,7 +7,7 @@ from envio_email import enviar_emails
 from atualizar_lista_pendentes import Atualizar_lista_pendetes
 from dotenv import load_dotenv
 from threading import Thread
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 from envio_email import enviar_emails
 from logger_config import logger
 from flask_cors import CORS
@@ -21,8 +21,9 @@ schedule.every().hour.do(Atualizar_lista_pendetes)
 schedule.every().day.at("16:00").do(lambda:enviar_emails(data_inicio= None, data_fim= None, Origem = "Automatico") )
 
 
-app = Flask(__name__)
-CORS(app)
+app = Flask(__name__, template_folder='C:\\Users\\Pedro Quintas\\OneDrive\\Documents\\GitHub\\Envio_email_Py\\tamplates\\')
+
+CORS(app,resources={r"/*": {"origins": "*"}})
 
 def enviar_emails_background(data_inicial=None, data_final=None, origem = "API", email = None,codigo = None):
     try:
@@ -35,78 +36,84 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem = "API",
         logger.error(f"Erro ao enviar e-mails: {e}")
         status, code = "erro", 500
 
-@app.route('/relatorio', methods=['POST'])
-def api_enviar_emails():
-    data = request.get_json()
-    data_inicial = data.get('data_inicial')
-    data_final = data.get('data_final')
-    email = data.get('email')
-    time.sleep(1)
+@app.route('/relatorio', methods=['GET','POST'])
+def relatorio():
+    if request.method=='GET':
+            return render_template('html/relatorio.html')
+    elif request.method=='POST':
+        data = request.get_json()
+        data_inicial = data.get('data_inicial')
+        data_final = data.get('data_final')
+        email = data.get('email')
+        time.sleep(1)
 
-    if not data_inicial or not data_final:
-        response = jsonify({"Campos de 'data' obrigatorios!"})
-        response.status_code= 500       
-        return response
-    
-    if not email:
-        response = jsonify({"Campo 'email' obrigatorio!"})
-        response.status_code= 500
-        return response
+        if not data_inicial or not data_final:
+            response = jsonify({"Campos de 'data' obrigatorios!"})
+            response.status_code= 500       
+            return response
+        
+        if not email:
+            response = jsonify({"Campo 'email' obrigatorio!"})
+            response.status_code= 500
+            return response
 
-    dados = validar_dados(data_inicial,data_final,codigo=None)
+        dados = validar_dados(data_inicial,data_final,codigo=None)
 
-    if not dados:
-        response = jsonify({"error":"Nenhum dado encontrato para o dia selecionado!"})
-        response.status_code= 500
-        return response
-    
-    if data_final and data_inicial and email:
-        response = jsonify({"message": "Dentro de alguns minutos o relatorio estará no seu email!"})
-        response.status_code = 200  
-        # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email))
-        thread.start()
-        return response
-    
-@app.route('/relatorio_especifico', methods=['POST'], endpoint = '/relatorio_especifico')
-def api_enviar_emails():
-    data = request.get_json()
-    data_inicial = data.get('data_inicial')
-    data_final = data.get('data_final')
-    email = data.get('email')
-    codigo = data.get('codigo')
-    time.sleep(1)
+        if not dados:
+            response = jsonify({"error":"Nenhum dado encontrato para o dia selecionado!"})
+            response.status_code= 500
+            return response
+        
+        if data_final and data_inicial and email:
+            response = jsonify({"message": "Dentro de alguns minutos o relatorio estará no seu email!"})
+            response.status_code = 200  
+            # Processamento em segundo plano
+            thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email))
+            thread.start()
+            return response
+        
+@app.route('/relatorio_especifico', methods=['GET','POST'], endpoint = '/relatorio_especifico')
+def relatorio_especifico():
+    if request.method=='GET':
+            return render_template('html/relatorio_especifico.html')
+    elif request.method=='POST':
+        data = request.get_json()
+        data_inicial = data.get('data_inicial')
+        data_final = data.get('data_final')
+        email = data.get('email')
+        codigo = data.get('codigo')
+        time.sleep(1)
 
-    if not data_inicial or not data_final:
-        response = jsonify({"Campos de 'data' obrigatorios!"})
-        response.status_code= 500       
-        return response
-    
-    if not email:
-        response = jsonify({"Campo 'email' obrigatorio!"})
-        response.status_code= 500
-        return response
+        if not data_inicial or not data_final:
+            response = jsonify({"Campos de 'data' obrigatorios!"})
+            response.status_code= 500       
+            return response
+        
+        if not email:
+            response = jsonify({"Campo 'email' obrigatorio!"})
+            response.status_code= 500
+            return response
 
-    dados = validar_dados(data_inicial,data_final,codigo)
+        dados = validar_dados(data_inicial,data_final,codigo)
 
-    if not dados:
-        response = jsonify({"error":"Nenhum dado encontrato para o dia selecionado!"})
-        response.status_code= 500
-        return response
-    
-    if data_final and data_inicial and email and codigo:
-        response = jsonify({"message": "Dentro de alguns minutos o relatorio estará no seu email!"})
-        response.status_code = 200  
-        # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo))
-        thread.start()
-        return response
+        if not dados:
+            response = jsonify({"error":"Nenhum dado encontrato para o dia selecionado!"})
+            response.status_code= 500
+            return response
+        
+        if data_final and data_inicial and email and codigo:
+            response = jsonify({"message": "Dentro de alguns minutos o relatorio estará no seu email!"})
+            response.status_code = 200  
+            # Processamento em segundo plano
+            thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo))
+            thread.start()
+            return response
     
 @app.route('/proxy/relatorio', methods = ['POST'])
 def proxy_relatorio():
     data = request.get_json()
 
-    URL= 'http://26.154.23.230:8080/relatorio'
+    URL= 'http://26.87.217.227:8080/relatorio'
 
     try:
         response = requests.post(URL,json = data)
@@ -120,7 +127,7 @@ def proxy_relatorio():
 def proxy_relatorio_especifico():
     data = request.get_json()
 
-    URL= 'http://26.154.23.230:8080/relatorio_especifico'
+    URL= 'http://26.87.217.227:8080/relatorio_especifico'
     
     try:
         response = requests.post(URL,json = data)
@@ -142,5 +149,5 @@ if __name__ == "__main__":
 
     Thread(target=run_schedule).start()
 
-app.run(host='0.0.0.0', port=8080, threaded=True)
+app.run(host='0.0.0.0', port=8080, threaded=True,debug=True)
 
