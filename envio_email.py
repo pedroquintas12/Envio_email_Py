@@ -119,8 +119,12 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
                 object_name = f"{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
+
             if env == 'test':
                 object_name = f"test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
+
+            if data_inicio and data_fim:
+                object_name = f"relatorios/{cod_cliente}/{data_inicio}_{data_fim}/{localizador}.html"
 
             queue = Queue()
 
