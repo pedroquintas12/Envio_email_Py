@@ -2,7 +2,7 @@ from queue import Queue
 from datetime import datetime
 import threading
 from processo_data import fetch_processes_and_clients
-from tamplates.template import generate_email_body
+from templates.template import generate_email_body
 from mail_sender import send_email
 import uuid
 from logger_config import logger
@@ -131,11 +131,13 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             #retorna o link em uma queue
             permanent_url = queue.get()
             if permanent_url:
-                if env == 'test' or Origem == 'API':
+                if env == 'test' :
                     cliente_number = [{"numero": "5581997067420"}]
+                if Origem == 'API':
+                    cliente_number = None
                 #verifica se o cliente tem numero para ser enviado
                 if not cliente_number:
-                    logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
+                    logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API ou email enviado via API")
                 else:
                     for numero in cliente_number:
                         #envia a mensagem via whatsapp

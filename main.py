@@ -21,7 +21,7 @@ schedule.every().hour.do(Atualizar_lista_pendetes)
 schedule.every().day.at("16:00").do(lambda:enviar_emails(data_inicio= None, data_fim= None, Origem = "Automatico") )
 
 
-app = Flask(__name__, template_folder='C:\\Users\\Pedro Quintas\\OneDrive\\Documents\\GitHub\\Envio_email_Py\\tamplates\\')
+app = Flask(__name__)
 
 CORS(app,resources={r"/*": {"origins": "*"}})
 
