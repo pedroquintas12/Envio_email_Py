@@ -149,5 +149,5 @@ if __name__ == "__main__":
 
     Thread(target=run_schedule).start()
 
-app.run(host='0.0.0.0', port=8080, threaded=True,debug=True)
+app.run(host='0.0.0.0', port=8080, threaded=True)
 

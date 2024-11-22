@@ -32,7 +32,12 @@ load_dotenv(os.path.join(base_dir, 'config.env'))
 def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None):
     try:
         data_do_dia = datetime.now()
-        
+        if Origem == "API":
+            data_inicio_obj = datetime.strptime(data_inicio, "%Y-%m-%d")
+            data_fim_obj = datetime.strptime(data_fim, "%Y-%m-%d")
+            data_inicio_br = data_inicio_obj.strftime("%d/%m/%Y")
+            data_fim_br = data_fim_obj.strftime("%d/%m/%Y")
+
         # Busca os dados dos clientes e processos
         clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo)
 
@@ -105,7 +110,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 nome_mes_anterior = mes_anterior.strftime('%B').upper()
                 subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
             if Origem == 'API':
-                subject = f"LIGCONTATO - RELATÓRIO DISTRIBUIÇÕES DATAS:{data_inicio.strftime('%d/%m/%y')} - {data_fim} - {cliente}"
+                subject = f"LIGCONTATO - RELATÓRIO DISTRIBUIÇÕES DATAS: {data_inicio_br} - {data_fim_br} - {cliente}"
                
 
             # Envia o e-mail
