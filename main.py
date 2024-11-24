@@ -35,6 +35,10 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem = "API",
     except Exception as e:
         logger.error(f"Erro ao enviar e-mails: {e}")
         status, code = "erro", 500
+        
+@app.route('/')
+def index():
+    return render_template('html/index.html')
 
 @app.route('/relatorio', methods=['GET','POST'])
 def relatorio():
