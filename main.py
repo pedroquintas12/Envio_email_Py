@@ -18,10 +18,10 @@ import requests
 schedule.every().hour.do(Atualizar_lista_pendetes)
 
 # Agenda o envio para todos os dias às 16:00
-schedule.every().day.at("16:00").do(lambda:enviar_emails(data_inicio= None, data_fim= None, Origem = "Automatico") )
+schedule.every().day.at("16:25").do(lambda:enviar_emails(data_inicio= None, data_fim= None, Origem = "Automatico") )
 
 
-app = Flask(__name__, template_folder='C:\\Users\\Pedro Quintas\\OneDrive\\Documents\\GitHub\\Envio_email_Py\\tamplates\\')
+app = Flask(__name__, template_folder='C:\\Users\\pedro\\OneDrive\\Documentos\\GitHub\\envio_email_py\\templates\\', static_folder='C:\\Users\\pedro\\OneDrive\\Documentos\\GitHub\\envio_email_py\\static\\')
 
 CORS(app,resources={r"/*": {"origins": "*"}})
 
@@ -117,7 +117,7 @@ def relatorio_especifico():
 def proxy_relatorio():
     data = request.get_json()
 
-    URL= 'http://26.87.217.227:8080/relatorio'
+    URL= 'http://26.154.23.230:8080/relatorio'
 
     try:
         response = requests.post(URL,json = data)
@@ -131,7 +131,7 @@ def proxy_relatorio():
 def proxy_relatorio_especifico():
     data = request.get_json()
 
-    URL= 'http://26.87.217.227:8080/relatorio_especifico'
+    URL= 'http://26.154.23.230:8080/relatorio_especifico'
     
     try:
         response = requests.post(URL,json = data)

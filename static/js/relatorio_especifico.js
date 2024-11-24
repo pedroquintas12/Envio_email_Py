@@ -13,7 +13,7 @@
 
     try {
         // Enviar requisição para a API
-        const response = await fetch('http://26.87.217.227:8080/proxy/relatorio_especifico', {
+        const response = await fetch('http://26.154.23.230:8080/proxy/relatorio_especifico', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

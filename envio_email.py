@@ -2,7 +2,7 @@ from queue import Queue
 from datetime import datetime
 import threading
 from processo_data import fetch_processes_and_clients
-from tamplates.template import generate_email_body
+from templates.template import generate_email_body
 from mail_sender import send_email
 import uuid
 from logger_config import logger
@@ -119,8 +119,12 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
                 object_name = f"{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
+
             if env == 'test':
                 object_name = f"test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
+
+            if data_inicio and data_fim:
+                object_name = f"relatorios/{cod_cliente}/{data_inicio}_{data_fim}/{localizador}.html"
 
             queue = Queue()
 
@@ -137,7 +141,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     cliente_number = None
                 #verifica se o cliente tem numero para ser enviado
                 if not cliente_number:
-                    logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API")
+                    logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API ou email enviado via API")
                 else:
                     for numero in cliente_number:
                         #envia a mensagem via whatsapp
