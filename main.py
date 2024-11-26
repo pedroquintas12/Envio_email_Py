@@ -13,15 +13,33 @@ from logger_config import logger
 from flask_cors import CORS
 from processo_data import validar_dados
 import requests
+import sys,os
+
+
+#captura o ambiente de execução 
+if getattr(sys, 'frozen', False):
+    base_dir = os.path.dirname(sys.executable)
+else:
+    base_dir = os.path.dirname(__file__)
+
+
+load_dotenv(os.path.join(base_dir, 'config.env'))
+
+
+TEMPLATE_FOLDER = os.getenv("TEMPLATE_FOLDER")
+STATIC_FOLDER = os.getenv("STATIC_FOLDER")
 
 # Atualiza a lista de pendentes:
 schedule.every().hour.do(Atualizar_lista_pendetes)
 
 # Agenda o envio para todos os dias às 16:00
-schedule.every().day.at("16:25").do(lambda:enviar_emails(data_inicio= None, data_fim= None, Origem = "Automatico") )
+schedule.every().day.at("16:00").do(lambda:enviar_emails(data_inicio= None, data_fim= None, Origem = "Automatico") )
 
 
-app = Flask(__name__, template_folder='C:\\Users\\pedro\\OneDrive\\Documentos\\GitHub\\envio_email_py\\templates\\', static_folder='C:\\Users\\pedro\\OneDrive\\Documentos\\GitHub\\envio_email_py\\static\\')
+app = Flask(__name__,
+            template_folder=TEMPLATE_FOLDER, 
+            static_folder=STATIC_FOLDER
+            )
 
 CORS(app,resources={r"/*": {"origins": "*"}})
 
@@ -35,7 +53,7 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem = "API",
     except Exception as e:
         logger.error(f"Erro ao enviar e-mails: {e}")
         status, code = "erro", 500
-        
+
 @app.route('/')
 def index():
     return render_template('html/index.html')
@@ -153,5 +171,5 @@ if __name__ == "__main__":
 
     Thread(target=run_schedule).start()
 
-app.run(host='0.0.0.0', port=8080, threaded=True)
+app.run(host='0.0.0.0', port=3000, threaded=True)
 
