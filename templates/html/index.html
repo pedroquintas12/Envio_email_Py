@@ -1,32 +1,132 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>API Hub</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .truncate {
+            max-width: 150px; /* Define a largura máxima para os nomes */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .spinner-container {
+            display: none; /* Inicialmente escondido, será mostrado após a requisição */
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+
+        .table-container {
+            display: none; /* Inicialmente escondido */
+        }
+        .lead{
+            font-size: small;
+        }
+        .table-wrapper {
+            max-height: 300px; /* Define um limite para a altura */
+            overflow-y: auto; /* Ativa o scroll vertical */
+        }
+
+
+    </style>
 </head>
 <body class="bg-light">
-    <div class="container text-center py-5">
-        <h1 class="mb-4">Bem-vindo ao Hub de Relatórios</h1>
-        <p class="lead">Escolha uma das opções abaixo para acessar os relatórios:</p>
+    <div class="container py-5">
+        <header class="text-center mb-4">
+            <h1>DashBoard Distribuição</h1>
+        </header>
 
-        <div class="row justify-content-center mt-4">
-            <div class="col-md-4 mb-3">
-                <a href="/relatorio" class="btn btn-primary btn-lg w-100">
-                    Relatório Geral
-                </a>
+        <!-- Layout Básico para Exibição -->
+        <div id="content" class="table-container">
+            <div class="row mb-4">
+                <!-- Bloco de Pendentes de Envio -->
+                <div class="col-md-4">
+                    <div class="card shadow h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Pendentes de Envio</h5>
+                            <p class="lead">Horario de envio: 16:00hrs</p>
+                            <table class="table table-striped" id="pendentes-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Código</th>
+                                        <th>Total Processos</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bloco de Total Enviados Geral -->
+                <div class="col-md-4">
+                    <div class="card shadow h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Geral</h5>
+                            <table class="table table-striped" id="total-enviados-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Código</th>
+                                        <th>Total Processos</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bloco de Relatórios -->
+                <div class="col-md-4">
+                    <div class="card shadow h-100">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Relatórios</h5>
+                            <a href="/relatorio" class="btn btn-primary w-100 mb-2">Relatório Geral</a>
+                            <a href="/relatorio_especifico" class="btn btn-secondary w-100">Relatório Específico</a>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-4 mb-3">
-                <a href="/relatorio_especifico" class="btn btn-secondary btn-lg w-100">
-                    Relatório Específico
-                </a>
+
+            <!-- Bloco de Dados Detalhados -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Últimos Envios </h5>
+                            <table class="table table-striped table-bordered" id="historico-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Cliente</th>
+                                        <th>Localizador E-mail</th>
+                                        <th>Origem</th>
+                                        <th>Hora Envio</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spinner de Carregamento -->
+        <div id="spinner" class="spinner-container">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS (opcional, para funcionalidades interativas) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/dashborad.js"></script>
 </body>
 </html>

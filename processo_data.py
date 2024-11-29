@@ -4,6 +4,7 @@ from db_conexão import get_db_connection, get_db_ligcontato
 from concurrent import futures
 import concurrent
 import mysql.connector
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Captura todos os dados do processo
 def fetch_processes_and_clients(data_inicio, data_fim, codigo):
@@ -301,3 +302,161 @@ def validar_dados(data_inicio, data_fim, codigo):
     except Exception as e:
         logger.error(f"erro ao validar dados {e}")
 
+
+def formatar_data(data):
+    if data:
+        return data.strftime("%d/%m/%Y %H:%M:%S")
+    return None
+
+def historio_env():
+    try:
+        listnmes = []
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+        query = """SELECT 
+                    cod_escritorio,
+                    GROUP_CONCAT(ID_processo ORDER BY data_hora_envio SEPARATOR ', ') AS processos_enviados,
+                    localizador,
+                    origem,
+                    MAX(data_hora_envio) AS ultima_data_envio
+                FROM 
+                    envio_emails
+                GROUP BY 
+                    cod_escritorio, localizador, data_hora_envio, origem
+                ORDER BY
+                    data_hora_envio DESC LIMIT 10;"""
+        db_cursor.execute(query)
+        dados = db_cursor.fetchall()
+
+        # Mapeando registros com índices
+        indexed_data = {i: registro for i, registro in enumerate(dados)}
+
+        # Usando threading
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(nome_cliente, registro['cod_escritorio']): index
+                for index, registro in indexed_data.items()
+            }
+
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    nome_do_cliente = future.result()
+                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não encontrado'
+                except Exception as e:
+                    logger.error(f"Erro ao obter nome do cliente: {e}")
+                    indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
+        for registro in indexed_data.values():
+            registro['ultima_data_envio'] = formatar_data(registro['ultima_data_envio'])
+        # Reconstruindo a lista na ordem original
+        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
+
+        return listnmes
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar historico de envio {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar historico de envio {e}")
+
+
+def pendentes_envio():
+    try:
+        listnmes = []
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+        query = """SELECT
+                    p.Cod_escritorio,
+                    c.Cliente_VSAP,    
+                    COUNT(p.Cod_escritorio) AS Total
+                FROM 
+                    apidistribuicao.processo p
+                    INNER JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio
+                WHERE 
+                    p.deleted = 0
+                    AND p.status = 'P'
+                GROUP BY
+                    p.Cod_escritorio,
+                    c.Cliente_VSAP
+                ORDER BY
+                    p.Cod_escritorio;"""
+        db_cursor.execute(query)
+        dados = db_cursor.fetchall()
+
+        # Mapeando registros com índices
+        indexed_data = {i: registro for i, registro in enumerate(dados)}
+
+        # Usando threading
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(nome_cliente, registro['Cod_escritorio']): index
+                for index, registro in indexed_data.items()
+            }
+
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    nome_do_cliente = future.result()
+                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não encontrado'
+                except Exception as e:
+                    logger.error(f"Erro ao obter nome do cliente: {e}")
+                    indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
+
+        # Reconstruindo a lista na ordem original
+        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
+
+        return listnmes
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar pendentes {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar pendentes {e}")
+
+
+def total_geral():
+    try:
+        listnmes = []
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+        query = """SELECT
+                        MAX(c.Cod_Escritorio) AS Codigo_VSAP,
+                        c.Cliente_VSAP AS clienteVSAP,
+                        COUNT(p.ID_processo) AS totalDistribuicoes
+                    FROM
+                        apidistribuicao.processo AS p
+                        INNER JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio
+                    WHERE
+                        p.deleted = 0
+                    GROUP BY 
+                        Cliente_VSAP
+                    ORDER BY  totalDistribuicoes DESC LIMIT 7;"""
+        db_cursor.execute(query)
+        dados = db_cursor.fetchall()
+
+        # Mapeando registros com índices
+        indexed_data = {i: registro for i, registro in enumerate(dados)}
+
+        # Usando threading
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(nome_cliente, registro['Codigo_VSAP']): index
+                for index, registro in indexed_data.items()
+            }
+
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    nome_do_cliente = future.result()
+                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não encontrado'
+                except Exception as e:
+                    logger.error(f"Erro ao obter nome do cliente: {e}")
+                    indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
+
+        # Reconstruindo a lista na ordem original
+        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
+
+        return listnmes
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar historico total {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar historico total {e}")
