@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             // Enviar requisição para a API
-            const response = await fetch('http://26.154.23.230:8080/proxy/relatorio_especifico', {
+            const response = await fetch('/proxy/relatorio_especifico', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

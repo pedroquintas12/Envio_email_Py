@@ -26,8 +26,8 @@
         .lead{
             font-size: small;
         }
-        .table-wrapper {
-            max-height: 300px; /* Define um limite para a altura */
+        .table table-striped {
+            max-height: 100px; /* Define um limite para a altura */
             overflow-y: auto; /* Ativa o scroll vertical */
         }
 
@@ -38,93 +38,95 @@
     <div class="container py-5">
         <header class="text-center mb-4">
             <h1>DashBoard Distribuição</h1>
-        </header>
-
         <!-- Layout Básico para Exibição -->
-        <div id="content" class="table-container">
-            <div class="row mb-4">
-                <!-- Bloco de Pendentes de Envio -->
-                <div class="col-md-4">
-                    <div class="card shadow h-100">
-                        <div class="card-body">
-                            <h5 class="card-title">Pendentes de Envio</h5>
-                            <p class="lead">Horario de envio: 16:00hrs</p>
-                            <table class="table table-striped" id="pendentes-table">
-                                <thead>
-                                    <tr>
-                                        <th>Cliente</th>
-                                        <th>Código</th>
-                                        <th>Total Processos</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
+            <div id="content" class="table-container">
+                <div class="row mb-4">
+                    <!-- Bloco de Pendentes de Envio -->
+                    <div class="col-md-4">
+                        <div class="card shadow h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Pendentes de Envio</h5>
+                                <p class="lead">Horario de envio: 16:00hrs</p>
+                                <button id="atualizar-pendentes" class="btn btn-primary">Atualizar Pendentes</button>
+                                <table class="table table-striped" id="pendentes-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Código</th>
+                                            <th>Total Processos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bloco de Total Enviados Geral -->
+                    <div class="col-md-4">
+                        <div class="card shadow h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Geral</h5>
+                                <p class="lead">Total de Distribuição por escritorio</p>
+                                <table class="table table-striped" id="total-enviados-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Código</th>
+                                            <th>Total Processos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bloco de Relatórios -->
+                    <div class="col-md-4">
+                        <div class="card shadow h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Relatórios</h5>
+                                <a href="/relatorio" class="btn btn-primary w-100 mb-2">Relatório Geral</a>
+                                <a href="/relatorio_especifico" class="btn btn-secondary w-100 mb-2">Relatório Específico</a>
+                                <a href="/send_pending" class="btn btn-tertiary w-100">Enviar Pendentes</a>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Bloco de Total Enviados Geral -->
-                <div class="col-md-4">
-                    <div class="card shadow h-100">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Geral</h5>
-                            <table class="table table-striped" id="total-enviados-table">
-                                <thead>
-                                    <tr>
-                                        <th>Cliente</th>
-                                        <th>Código</th>
-                                        <th>Total Processos</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Bloco de Relatórios -->
-                <div class="col-md-4">
-                    <div class="card shadow h-100">
-                        <div class="card-body text-center">
-                            <h5 class="card-title">Relatórios</h5>
-                            <a href="/relatorio" class="btn btn-primary w-100 mb-2">Relatório Geral</a>
-                            <a href="/relatorio_especifico" class="btn btn-secondary w-100">Relatório Específico</a>
+                <!-- Bloco de Dados Detalhados -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card shadow h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Últimos Envios </h5>
+                                <table class="table table-striped table-bordered" id="historico-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Cliente</th>
+                                            <th>Localizador E-mail</th>
+                                            <th>Origem</th>
+                                            <th>Hora Envio</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Bloco de Dados Detalhados -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card shadow h-100">
-                        <div class="card-body">
-                            <h5 class="card-title">Últimos Envios </h5>
-                            <table class="table table-striped table-bordered" id="historico-table">
-                                <thead>
-                                    <tr>
-                                        <th>Código</th>
-                                        <th>Cliente</th>
-                                        <th>Localizador E-mail</th>
-                                        <th>Origem</th>
-                                        <th>Hora Envio</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
+            <!-- Spinner de Carregamento -->
+            <div id="spinner" class="spinner-container">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
                 </div>
             </div>
         </div>
-
-        <!-- Spinner de Carregamento -->
-        <div id="spinner" class="spinner-container">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
-        </div>
-    </div>
+</header>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/dashborad.js"></script>

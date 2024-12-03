@@ -7,7 +7,7 @@ import mysql.connector
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Captura todos os dados do processo
-def fetch_processes_and_clients(data_inicio, data_fim, codigo):
+def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem):
     clientes_data = {}
     try:
         db_connection = get_db_connection()
@@ -21,10 +21,14 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo):
                         p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
                         p.tipo_processo 
                     FROM apidistribuicao.processo AS p """
-                
-        if data_inicio and data_fim:
-                query += "WHERE p.status = 'S' AND DATE(p.data_insercao) between  %s and %s "
 
+        if data_inicio and data_fim:
+            query += "WHERE DATE(p.data_insercao) between  %s and %s "
+            if status == 'enviado' or origem == 'API':
+                query += "AND p.status = 'S' "
+            if status == 'pendente':
+                query += "AND p.status = 'P' "              
+        
         if not data_inicio and not data_fim and not codigo:
                 query += "WHERE p.status = 'P' "
         if codigo:
@@ -269,7 +273,7 @@ def cliente_erro(ID_processo):
     except Exception as err:
         logger.error(f"erro ao atualizar Status de erro: {err}")
 
-def validar_dados(data_inicio, data_fim, codigo):
+def validar_dados(data_inicio, data_fim, codigo,status):
     try:
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
@@ -282,9 +286,17 @@ def validar_dados(data_inicio, data_fim, codigo):
                         p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
                         p.tipo_processo 
                     FROM apidistribuicao.processo AS p 
-                    WHERE p.status = 'S' AND DATE(p.data_insercao) between  %s and %s """
+                    WHERE WHERE DATE(p.data_insercao) between  %s and %s """
+        if status:
+            if status == 'enviado':
+                query+= "AND p.status = 'S' "
+            if status == 'pendente':
+                query += "AND p.status = 'P' "
+        if not status:
+            query += "AND p.status = 'S' "
         if codigo:
             query+= """AND p.Cod_escritorio = %s """
+            
         query+= """ GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
                             p.uf, p.sigla_sistema, p.tribunal,ID_processo;
                 """
@@ -413,11 +425,15 @@ def pendentes_envio():
 
 
 def total_geral():
+    data = datetime.now()
+    ano = data.year
+    mes = data.month
+    data_inicio_obj = data.strftime("%Y-%m-%d")
     try:
         listnmes = []
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
-        query = """SELECT
+        query = f"""SELECT
                         MAX(c.Cod_Escritorio) AS Codigo_VSAP,
                         c.Cliente_VSAP AS clienteVSAP,
                         COUNT(p.ID_processo) AS totalDistribuicoes
@@ -425,7 +441,7 @@ def total_geral():
                         apidistribuicao.processo AS p
                         INNER JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio
                     WHERE
-                        p.deleted = 0
+                        p.deleted = 0 AND DATE(p.data_insercao) between '{ano}-{mes}-01' and '{data_inicio_obj}'
                     GROUP BY 
                         Cliente_VSAP
                     ORDER BY  totalDistribuicoes DESC LIMIT 7;"""

@@ -29,8 +29,9 @@ else:
 load_dotenv(os.path.join(base_dir, 'config.env'))
 
 
-def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None):
+def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None):
     try:
+        
         data_do_dia = datetime.now()
         if Origem == "API":
             data_inicio_obj = datetime.strptime(data_inicio, "%Y-%m-%d")
@@ -39,7 +40,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             data_fim_br = data_fim_obj.strftime("%d/%m/%Y")
 
         # Busca os dados dos clientes e processos
-        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo)
+        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo,status,Origem)
 
         contador_Inativos = 0
 
@@ -66,26 +67,31 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             emails = fetch_email(cod_cliente)
             env = os.getenv('ENV')
             
+            # Verificação para todos os processos do cliente
+            for processo in processos:
+                ID_processo = processo['ID_processo']
+                cliente_STATUS = processo['cliente_status']
 
-            #Se o cliente não tem email para ser enviado, logo esta "bloquado"
-            if not emails:
-                logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou esta bloqueado")
-                contador_Inativos += 1
-                cliente_erro(ID_processo)
-                continue
-            #verifica se existe algum cliente com esse codigo VSAP
-            if not cliente_STATUS:
-                logger.warning(f"VSAP: {cod_cliente} não esta cadastrado na API email não enviado!")
-                contador_Inativos += 1
-                cliente_erro(ID_processo)
-                continue
-            #verifica se o Status dele esta Liberado(L)
-            if cliente_STATUS[0] != 'L':
-                logger.warning(f"VSAP: {cod_cliente} não esta ativo na API email não enviado!")
-                contador_Inativos += 1
-                cliente_erro(ID_processo)
-                continue
-            
+                # Se o cliente não tem email para ser enviado, marca todos os processos com erro
+                if not emails and not email:
+                    logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
+                    contador_Inativos += 1
+                    cliente_erro(ID_processo)  # Marca este processo com erro
+                    continue  # Continua para o próximo processo
+
+                # Verifica se o cliente tem código VSAP
+                if not cliente_STATUS:
+                    logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
+                    contador_Inativos += 1
+                    cliente_erro(ID_processo)  # Marca este processo com erro
+                    continue  # Continua para o próximo processo
+
+                # Verifica se o Status do cliente está "Liberado (L)"
+                if cliente_STATUS[0] != 'L':
+                    logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
+                    contador_Inativos += 1
+                    cliente_erro(ID_processo)  # Marca este processo com erro
+                    continue  # Continua para o próximo processo
 
             
             localizador = str(uuid.uuid4()) 
@@ -173,6 +179,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
     except Exception as err:
         logger.error(f"Erro ao executar o codigo: {err}")
+
 def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, queue):
     try:
         permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)

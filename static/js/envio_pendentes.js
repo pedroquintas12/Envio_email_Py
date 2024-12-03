@@ -4,8 +4,9 @@ document.addEventListener('DOMContentLoaded', function () {
         event.preventDefault(); // Evitar reload da página
 
         const dataInicial = document.getElementById('data_inicial').value;
-        const dataFinal = document.getElementById('data_final').value;
         const email = document.getElementById('email').value;
+        const code = document.getElementById('code_vsap').value;
+        const processStatus = document.getElementById('processStatus').value;
         const submitBtn = document.getElementById('submitBtn');
 
         // Alterar o estado do botão para mostrar o carregando
@@ -14,15 +15,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             // Enviar requisição para a API
-            const response = await fetch('/proxy/relatorio', {
+            const response = await fetch('/proxy/send_pending', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     data_inicial: dataInicial,
-                    data_final: dataFinal,
                     email: email,
+                    codigo: code,
+                    Status: processStatus
                 }),
             });
 
@@ -48,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     title: 'Sucesso!',
                     text: `Publicações enviadas: ${result.total_processos}`,
                     showConfirmButton: false,
-                    timer: 3000,
+                    timer: 5000,
                     position: 'top-end',
                     toast: true,
                     background: '#28a745',

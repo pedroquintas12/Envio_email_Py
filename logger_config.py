@@ -27,7 +27,7 @@ log_name = f'log-envio-{current_date}.log'
 log_file_path = os.path.join(log_directory,log_name)
 
 logger = logging.getLogger('Log')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 file_handler = logging.FileHandler(log_file_path)
 console_handler = logging.StreamHandler()
