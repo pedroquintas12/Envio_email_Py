@@ -1,7 +1,7 @@
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from logger_config import logger
+from config.logger_config import logger
 
 
 def send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject):

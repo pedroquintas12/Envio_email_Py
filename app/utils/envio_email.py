@@ -1,33 +1,23 @@
 from queue import Queue
 from datetime import datetime
 import threading
-from processo_data import fetch_processes_and_clients
+from app.utils.processo_data import fetch_processes_and_clients
 from templates.template import generate_email_body
-from mail_sender import send_email
+from scripts.mail_sender import send_email
 import uuid
-from logger_config import logger
-from send_whatsapp import enviar_mensagem_whatsapp
-from uploud_To_S3 import upload_html_to_s3
-from processo_data import fetch_numero
-from processo_data import fetch_email
-from processo_data import fetch_companies
-from processo_data import status_envio
-from processo_data import status_processo
-from processo_data import cliente_erro
-import sys
-import os
-from dotenv import load_dotenv
+from config.logger_config import logger
+from scripts.send_whatsapp import enviar_mensagem_whatsapp
+from scripts.uploud_To_S3 import upload_html_to_s3
+from app.utils.processo_data import fetch_numero
+from app.utils.processo_data import fetch_email
+from app.utils.processo_data import fetch_companies
+from app.utils.processo_data import status_envio
+from app.utils.processo_data import status_processo
+from app.utils.processo_data import cliente_erro
+from config import config
+
 import locale
 from dateutil.relativedelta import relativedelta
-
-#captura o ambiente de execução 
-if getattr(sys, 'frozen', False):
-    base_dir = os.path.dirname(sys.executable)
-else:
-    base_dir = os.path.dirname(__file__)
-
-load_dotenv(os.path.join(base_dir, 'config.env'))
-
 
 def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None):
     try:
@@ -46,16 +36,16 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
         total_escritorios = len(clientes_data)  
         #recupera dos dados do comapanies
-        config = fetch_companies()
+        config_smtp = fetch_companies()
 
-        if config:
-                ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config
+        if config_smtp:
+                ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
         else:
-                logger.warning("Configuração SMTP não encontrada.")
+                logger.warning("configuração SMTP não encontrada.")
                 exit()
 
 
-        # Configuração do SMTP
+        # configuração do SMTP
         smtp_config = (smtp_host, smtp_port, smtp_user, smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,logo)
 
         for cliente, processos in clientes_data.items():
@@ -65,8 +55,8 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             cod_cliente = processos[0]['cod_escritorio']
             cliente_number = fetch_numero(cod_cliente)
             emails = fetch_email(cod_cliente)
-            env = os.getenv('ENV')
-            
+            env = config.ENV
+
             # Verificação para todos os processos do cliente
             for processo in processos:
                 ID_processo = processo['ID_processo']
@@ -112,8 +102,6 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
             if data_inicio and data_fim or Origem == 'Automatico':
                 data_do_dia = datetime.now()
-                mes_anterior = data_do_dia - relativedelta(months=1)  # Subtrai 1 mês da data atual
-                nome_mes_anterior = mes_anterior.strftime('%B').upper()
                 subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
             if Origem == 'API':
                 subject = f"LIGCONTATO - RELATÓRIO DISTRIBUIÇÕES DATAS: {data_inicio_br} - {data_fim_br} - {cliente}"

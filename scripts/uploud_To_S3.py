@@ -1,4 +1,4 @@
-from logger_config import logger
+from config.logger_config import logger
 import boto3
 import io
 from botocore.exceptions import NoCredentialsError, ClientError

@@ -1,4 +1,4 @@
-from logger_config import logger
+from config.logger_config import logger
 import json
 import requests
 def enviar_mensagem_whatsapp(ID_lig, url_Sirius, sirius_Token, numero_cliente, url_arquivo, titulo, descricao, thumbnail):

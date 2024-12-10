@@ -1,6 +1,6 @@
 from datetime import datetime
-from logger_config import logger
-from db_conexão import get_db_connection, get_db_ligcontato
+from config.logger_config import logger
+from config.db_conexão import get_db_connection, get_db_ligcontato
 from concurrent import futures
 import concurrent
 import mysql.connector
@@ -286,7 +286,7 @@ def validar_dados(data_inicio, data_fim, codigo,status):
                         p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
                         p.tipo_processo 
                     FROM apidistribuicao.processo AS p 
-                    WHERE WHERE DATE(p.data_insercao) between  %s and %s """
+                    WHERE DATE(p.data_insercao) between  %s and %s """
         if status:
             if status == 'enviado':
                 query+= "AND p.status = 'S' "
