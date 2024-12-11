@@ -4,13 +4,23 @@ from threading import Thread
 import time
 
 import jwt
+import requests
 from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, make_response, redirect, render_template, request, url_for
 from app.utils.processo_data import validar_dados
 from config import config
+from app.utils.processo_data import total_geral
+from app.utils.processo_data import historio_env
+from app.utils.processo_data import pendentes_envio
 
 main_bp = Blueprint('main', __name__)
+
+if config.ENV == 'test':
+    UrlApiProd = config.UrlApiTest
+
+if config.ENV == 'production':
+    UrlApiProd = config.UrlApiProd
 
 def token_required(f):
     @wraps(f)
@@ -49,9 +59,25 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
     except Exception as e:
         logger.error(f"Erro ao enviar e-mails: {e}")
         status, code = "erro", 500
+        
+@main_bp.route('/api/dados')
+@token_required
+def api_dados():
+
+    historico = historio_env()
+    pendentes = pendentes_envio()
+    total = total_geral()
+
+    # Retornar os dados como JSON
+    return jsonify({
+        'historico': historico,
+        'pendentes': pendentes,
+        'total_enviados': total
+    })
 
 # Rota para gerar e enviar relatório
 @main_bp.route('/relatorio', methods=['POST'])
+@token_required
 def relatorio():
     data = request.get_json()
     data_inicial = data.get('data_inicial')
@@ -90,6 +116,7 @@ def relatorio():
 
 # Rota para gerar e enviar relatório específico
 @main_bp.route('/relatorio_especifico', methods=['POST'], endpoint='/relatorio_especifico')
+@token_required
 def relatorio_especifico():
     data = request.get_json()
     data_inicial = data.get('data_inicial')
@@ -129,13 +156,13 @@ def relatorio_especifico():
         return response
         
 @main_bp.route('/send_pending', methods=['POST'])
+@token_required
 def send_pending():
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     email = data.get('email')
     codigo = data.get('codigo')
     status = data.get('Status')
-    time.sleep(1)
 
     data_final = data_inicial
     
