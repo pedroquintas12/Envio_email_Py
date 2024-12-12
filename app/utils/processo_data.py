@@ -24,7 +24,8 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem):
 
         if data_inicio and data_fim:
             query += "WHERE DATE(p.data_insercao) between  %s and %s "
-            if status == 'enviado' or origem == 'API':
+
+            if status == 'enviado':
                 query += "AND p.status = 'S' "
             if status == 'pendente':
                 query += "AND p.status = 'P' "              

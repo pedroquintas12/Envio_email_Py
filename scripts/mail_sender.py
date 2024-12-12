@@ -5,6 +5,7 @@ from config.logger_config import logger
 
 
 def send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject):
+    
     smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email, smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,logo = smtp_config
 
 

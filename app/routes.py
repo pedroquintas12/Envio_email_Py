@@ -82,8 +82,7 @@ def relatorio():
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     data_final = data.get('data_final')
-    email = data.get('email')
-    time.sleep(1)
+    email = data.get('email') 
 
     # Validação dos dados de entrada
     if not data_inicial or not data_final:
@@ -109,7 +108,7 @@ def relatorio():
             "total_processos": total_processos  # Adiciona o total de processos ao JSON
         })
         # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None))
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, "enviado"))
         thread.start()
         thread.join()
         return response
@@ -123,8 +122,7 @@ def relatorio_especifico():
     data_final = data.get('data_final')
     email = data.get('email')
     codigo = data.get('codigo')
-    time.sleep(1)
-
+    
     if not data_inicial or not data_final:
         response = jsonify({"Campos de 'data' obrigatorios!"})
         response.status_code = 500
@@ -135,7 +133,7 @@ def relatorio_especifico():
         response.status_code = 500
         return response
 
-    dados = validar_dados(data_inicial, data_final, codigo, None)
+    dados = validar_dados(data_inicial, data_final, codigo, "enviado")
 
     total_processos = len(dados)
 
@@ -150,7 +148,7 @@ def relatorio_especifico():
             "total_processos": total_processos  # Adiciona o total de processos ao JSON
         })
         # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,None))
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"enviado"))
         thread.start()
         thread.join()
         return response

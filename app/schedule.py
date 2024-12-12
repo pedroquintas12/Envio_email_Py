@@ -4,7 +4,7 @@ import time
 
 _scheduler_started = False  # Variável para evitar múltiplas inicializações
 
-schedule.every().day.at("22:29").do(lambda: enviar_emails(data_inicio=None, data_fim=None, Origem="Automatico",status = None))
+schedule.every().day.at("16:00").do(lambda: enviar_emails(data_inicio=None, data_fim=None, Origem="Automatico",status = "pendente"))
 
 
 def run_scheduler():
