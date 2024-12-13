@@ -117,7 +117,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             if env == 'test':
                 object_name = f"test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
 
-            if data_inicio and data_fim:
+            if Origem == 'API':
                 object_name = f"relatorios/{cod_cliente}/{data_inicio}_{data_fim}/{localizador}.html"
 
             queue = Queue()
@@ -160,13 +160,14 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     numero = ', '.join(item['numero'] for item in cliente_number if 'numero' in item)
                 else:
                     numero = "Cliente não tem número cadastrado na API"  
+
                 status_processo(processo_id)
                 status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
                                 data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url,Origem)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
     except Exception as err:
-        logger.error(f"Erro ao executar o codigo: {err}")
+        logger.error(f"Erro ao executar o envio: {err}")
 
 def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, queue):
     try:
