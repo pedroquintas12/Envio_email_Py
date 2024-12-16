@@ -1,6 +1,7 @@
 from datetime import datetime
 from config.logger_config import logger
-from config.db_conexão import get_db_connection, get_db_ligcontato
+from config.db_conexão import get_db_connection
+from app.apiLig import fetch_cliente_api_dashboard, fetch_cliente_api
 from concurrent import futures
 import concurrent
 import mysql.connector
@@ -113,7 +114,7 @@ def fetch_autores_reus_links(tipo, processes):
     return data_dict
 
 def process_result(process, clientes_data, autor_dict, reu_dict, links_dict):
-    clienteVSAP = nome_cliente(process['Cod_escritorio'])
+    clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'])
     num_processo = process['numero_processo']
     data_distribuicao = process['data_distribuicao'].strftime('%d/%m/%Y')
     tribunal = process['tribunal']
@@ -125,8 +126,6 @@ def process_result(process, clientes_data, autor_dict, reu_dict, links_dict):
     autor_list = autor_dict.get(process['ID_processo'], [{"nomeAutor": "[Nenhum dado disponível]"}])
     reu_list = reu_dict.get(process['ID_processo'], [{"nomeReu": "[Nenhum dado disponível]"}])
     links_list = links_dict.get(process['ID_processo'], [])
-
-    status_cliente = validar_cliente(process['Cod_escritorio'])
 
     # Adiciona os dados ao cliente
     if clienteVSAP not in clientes_data:
@@ -148,58 +147,10 @@ def process_result(process, clientes_data, autor_dict, reu_dict, links_dict):
         'comarca': comarca,
         'localizador': process['LocatorDB'],
         'tipo_processo': process['tipo_processo'],
-        'cliente_status': status_cliente
+        'cliente_status': office_status,
+        'office_id': Office_id,
     })
-# Captura os números para envio
-def fetch_numero(cod_cliente):
-    list_numbers = []
-    try:
-        with get_db_ligcontato() as db_connection:
-            with db_connection.cursor() as db_cursor:
-                db_cursor.execute("""
-                    SELECT nw.`number` 
-                    FROM offices_whatsapp_numbers nw 
-                    JOIN offices e ON nw.offices_id = e.offices_id 
-                    WHERE e.office_code = %s AND nw.status = 'L' AND nw.deleted = 0 
-                """, (cod_cliente,))
-                cliente_number = db_cursor.fetchall()
-                list_numbers = [{'numero': number[0]} for number in cliente_number]
 
-    except Exception as err:
-        logger.error(f"Erro na consulta do número de celular: {err}")
-
-    return list_numbers
-
-# Faz a verificação se o cliente está ativo (L) ou Bloqueado (B)
-def validar_cliente(cod_cliente):
-    try:
-        with get_db_ligcontato() as db_connection:
-            with db_connection.cursor() as db_cursor:
-                db_cursor.execute("SELECT status FROM offices WHERE office_code = %s", (cod_cliente,))
-                cliente_STATUS = db_cursor.fetchone()
-                
-                return cliente_STATUS[0] if cliente_STATUS else None
-
-    except Exception as err:
-        logger.error(f"Erro na consulta do status do cliente: {err}")
-
-# Captura emails para serem enviados 
-def fetch_email(cod_cliente):
-    try:
-        with get_db_ligcontato() as db_connection:
-            with db_connection.cursor() as db_cursor:
-                db_cursor.execute("""
-                    SELECT GROUP_CONCAT(DISTINCT oe.email ORDER BY oe.email SEPARATOR ', ') 
-                    FROM offices_emails oe 
-                    JOIN offices e ON oe.offices_id = e.offices_id 
-                    WHERE e.office_code = %s
-                    AND oe.status = 'L' AND oe.deleted = 0 AND oe.receive_distribution = 1
-                """, (cod_cliente,))
-                email_cliente = db_cursor.fetchone()
-
-                return email_cliente[0] if email_cliente else None
-    except Exception as err:
-        logger.error(f"Erro na consulta do email: {err}")
 
 # Puxa todos os dados necessários para envio de email e WhatsApp (SMTP/URL API)
 def fetch_companies():
@@ -249,17 +200,6 @@ def status_envio(processo_id, numero_processo, cod_escritorio, localizador_proce
     except Exception as err:
         logger.error(f"Erro ao inserir o email no banco de dados: {err}")
 
-def nome_cliente(cod_cliente):
-    try:
-        with get_db_ligcontato() as db_connection:
-            with db_connection.cursor() as db_cursor:
-
-                db_cursor.execute("""SELECT description FROM offices WHERE office_code = %s""", (cod_cliente,))
-                cliente = db_cursor.fetchone()
-
-                return cliente[0]
-    except Exception as err:
-        logger.error(f"Erro ao capturar nome: {err}")
 
 def cliente_erro(ID_processo):
     try:
@@ -328,16 +268,17 @@ def historio_env():
         db_cursor = db_connection.cursor(dictionary=True)
         query = """SELECT 
                     cod_escritorio,
-                    GROUP_CONCAT(ID_processo ORDER BY data_hora_envio SEPARATOR ', ') AS processos_enviados,
                     localizador,
                     origem,
                     MAX(data_hora_envio) AS ultima_data_envio
                 FROM 
-                    envio_emails
+                    apidistribuicao.envio_emails
                 GROUP BY 
-                    cod_escritorio, localizador, data_hora_envio, origem
+                    cod_escritorio, localizador, origem
                 ORDER BY
-                    data_hora_envio DESC LIMIT 10;"""
+                    ultima_data_envio DESC
+                LIMIT 10;
+                """
         db_cursor.execute(query)
         dados = db_cursor.fetchall()
 
@@ -347,7 +288,7 @@ def historio_env():
         # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(nome_cliente, registro['cod_escritorio']): index
+                executor.submit(fetch_cliente_api_dashboard, registro['cod_escritorio']): index
                 for index, registro in indexed_data.items()
             }
 
@@ -401,7 +342,7 @@ def pendentes_envio():
         # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(nome_cliente, registro['Cod_escritorio']): index
+                executor.submit(fetch_cliente_api_dashboard, registro['Cod_escritorio']): index
                 for index, registro in indexed_data.items()
             }
 
@@ -455,7 +396,7 @@ def total_geral():
         # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(nome_cliente, registro['Codigo_VSAP']): index
+                executor.submit(fetch_cliente_api_dashboard, registro['Codigo_VSAP']): index
                 for index, registro in indexed_data.items()
             }
 

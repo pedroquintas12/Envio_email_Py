@@ -75,6 +75,25 @@ def api_dados():
         'total_enviados': total
     })
 
+@main_bp.route('/api/dados/pendentes')
+@token_required
+def api_dados_pendentes():
+    pendentes = pendentes_envio()
+    return jsonify({'pendentes':pendentes})
+
+@main_bp.route('/api/dados/historico')
+@token_required
+def api_dados_historico():
+    historico = historio_env()
+    return jsonify({'historico': historico})
+
+@main_bp.route('/api/dados/total')
+@token_required
+def api_dados_total():
+    total = total_geral()
+    return jsonify({'total_enviados':total})
+
+
 # Rota para gerar e enviar relatório
 @main_bp.route('/relatorio', methods=['POST'])
 @token_required
@@ -108,7 +127,7 @@ def relatorio():
             "total_processos": total_processos  # Adiciona o total de processos ao JSON
         })
         # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, "enviado"))
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "enviado"))
         thread.start()
         thread.join()
         return response

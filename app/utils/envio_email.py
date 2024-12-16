@@ -8,13 +8,13 @@ import uuid
 from config.logger_config import logger
 from scripts.send_whatsapp import enviar_mensagem_whatsapp
 from scripts.uploud_To_S3 import upload_html_to_s3
-from app.utils.processo_data import fetch_numero
-from app.utils.processo_data import fetch_email
 from app.utils.processo_data import fetch_companies
 from app.utils.processo_data import status_envio
 from app.utils.processo_data import status_processo
 from app.utils.processo_data import cliente_erro
+from app.apiLig import fetch_email_api, fetch_cliente_api,fetch_numero_api
 from config import config
+
 
 import locale
 from dateutil.relativedelta import relativedelta
@@ -53,8 +53,10 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             ID_processo = processos[0]['ID_processo']
             cliente_STATUS = processos[0]['cliente_status']
             cod_cliente = processos[0]['cod_escritorio']
-            cliente_number = fetch_numero(cod_cliente)
-            emails = fetch_email(cod_cliente)
+            Office_id = processos[0]['office_id']
+            cliente_number = fetch_numero_api(Office_id)
+            emails = fetch_email_api(Office_id)
+
             env = config.ENV
 
             # Verificação para todos os processos do cliente
@@ -130,7 +132,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             permanent_url = queue.get()
             if permanent_url:
                 if env == 'test' :
-                    cliente_number = [{"numero": "5581997067420"}]
+                    cliente_number = ["5581997067420"]
                 if Origem == 'API':
                     cliente_number = None
                 #verifica se o cliente tem numero para ser enviado
@@ -142,7 +144,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         enviar_mensagem_whatsapp(ID_lig,
                                                 url_Sirius,
                                                 sirius_Token,
-                                                numero['numero'],
+                                                numero,
                                                 permanent_url,
                                                 f"Distribuição de novas ações - {cliente}",
                                                 f"Total: {len(processos)} Distribuições",

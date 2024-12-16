@@ -20,3 +20,4 @@ class config:
     SECRET_TOKEN = os.getenv("SECRET_TOKEN")
     UrlApiProd = os.getenv("UrlApiProd")
     UrlApiTest = os.getenv("UrlApiTest")
+    TOKEN_APILIG = os.getenv("TOKEN_APILIG")
