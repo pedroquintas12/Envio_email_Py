@@ -59,32 +59,37 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
             env = config.ENV
 
+            erro_no_cliente = False  # Flag para indicar erro no cliente
+
             # Verificação para todos os processos do cliente
             for processo in processos:
                 ID_processo = processo['ID_processo']
                 cliente_STATUS = processo['cliente_status']
 
                 # Se o cliente não tem email para ser enviado, marca todos os processos com erro
-                if not emails and not email:
+                if not emails and   not email:
                     logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
-                    contador_Inativos += 1
                     cliente_erro(ID_processo)  # Marca este processo com erro
+                    erro_no_cliente = True
                     continue  # Continua para o próximo processo
 
                 # Verifica se o cliente tem código VSAP
                 if not cliente_STATUS:
                     logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
-                    contador_Inativos += 1
                     cliente_erro(ID_processo)  # Marca este processo com erro
+                    erro_no_cliente = True                   
                     continue  # Continua para o próximo processo
 
                 # Verifica se o Status do cliente está "Liberado (L)"
                 if cliente_STATUS[0] != 'L':
                     logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
-                    contador_Inativos += 1
                     cliente_erro(ID_processo)  # Marca este processo com erro
+                    erro_no_cliente = True
                     continue  # Continua para o próximo processo
 
+            if erro_no_cliente:
+                contador_Inativos += 1
+                continue
             
             localizador = str(uuid.uuid4()) 
 

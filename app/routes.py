@@ -127,7 +127,7 @@ def relatorio():
             "total_processos": total_processos  # Adiciona o total de processos ao JSON
         })
         # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "enviado"))
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S"))
         thread.start()
         thread.join()
         return response
@@ -152,7 +152,7 @@ def relatorio_especifico():
         response.status_code = 500
         return response
 
-    dados = validar_dados(data_inicial, data_final, codigo, "enviado")
+    dados = validar_dados(data_inicial, data_final, codigo, "S")
 
     total_processos = len(dados)
 
@@ -167,7 +167,7 @@ def relatorio_especifico():
             "total_processos": total_processos  # Adiciona o total de processos ao JSON
         })
         # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"enviado"))
+        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S"))
         thread.start()
         thread.join()
         return response

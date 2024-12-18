@@ -26,10 +26,7 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem):
         if data_inicio and data_fim:
             query += "WHERE DATE(p.data_insercao) between  %s and %s "
 
-            if status == 'enviado':
-                query += "AND p.status = 'S' "
-            if status == 'pendente':
-                query += "AND p.status = 'P' "              
+            query += f"AND p.status = '{status}' "            
         
         if not data_inicio and not data_fim and not codigo:
                 query += "WHERE p.status = 'P' "
@@ -229,10 +226,7 @@ def validar_dados(data_inicio, data_fim, codigo,status):
                     FROM apidistribuicao.processo AS p 
                     WHERE DATE(p.data_insercao) between  %s and %s """
         if status:
-            if status == 'enviado':
-                query+= "AND p.status = 'S' "
-            if status == 'pendente':
-                query += "AND p.status = 'P' "
+            query += f"AND p.status ='{status}'"
         if not status:
             query += "AND p.status = 'S' "
         if codigo:
