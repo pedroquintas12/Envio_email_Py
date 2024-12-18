@@ -412,3 +412,18 @@ def total_geral():
         logger.error(f"Erro ao puxar historico total {err}")
     except Exception as e:
         logger.error(f"Erro ao puxar historico total {e}")
+
+
+def log_error(ID_processo,cod_escritorio,numero_processo,motivo):
+    try:
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+        query = """insert into log_erro (ID_processo, cod_escritorio, numero_processo, motivo, created_date,modified_date)
+                    VALUES (%s,%s,%s,%s,%s,%s)"""
+        db_cursor.execute(query, (ID_processo,cod_escritorio,numero_processo,motivo, datetime.now(), datetime.now()))
+        db_connection.commit()
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao Inserir log de erro {err}")
+    except Exception as e:
+        logger.error(f"Erro ao Inserir log de erro {e}")      

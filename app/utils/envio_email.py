@@ -8,11 +8,8 @@ import uuid
 from config.logger_config import logger
 from scripts.send_whatsapp import enviar_mensagem_whatsapp
 from scripts.uploud_To_S3 import upload_html_to_s3
-from app.utils.processo_data import fetch_companies
-from app.utils.processo_data import status_envio
-from app.utils.processo_data import status_processo
-from app.utils.processo_data import cliente_erro
-from app.apiLig import fetch_email_api, fetch_cliente_api,fetch_numero_api
+from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,status_processo,cliente_erro, log_error
+from app.apiLig import fetch_email_api,fetch_numero_api
 from config import config
 
 
@@ -33,6 +30,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo,status,Origem)
 
         contador_Inativos = 0
+
 
         total_escritorios = len(clientes_data)  
         #recupera dos dados do comapanies
@@ -65,11 +63,13 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             for processo in processos:
                 ID_processo = processo['ID_processo']
                 cliente_STATUS = processo['cliente_status']
+                numero_processo = processos[0]['numero_processo']
 
                 # Se o cliente não tem email para ser enviado, marca todos os processos com erro
                 if not emails and   not email:
                     logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
                     cliente_erro(ID_processo)  # Marca este processo com erro
+                    log_error(ID_processo,cod_cliente,numero_processo,"Cliente sem email para enviar ou bloqueado")
                     erro_no_cliente = True
                     continue  # Continua para o próximo processo
 
@@ -77,6 +77,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 if not cliente_STATUS:
                     logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
                     cliente_erro(ID_processo)  # Marca este processo com erro
+                    log_error(ID_processo,cod_cliente,numero_processo,"Cliente não cadastrado na API")
                     erro_no_cliente = True                   
                     continue  # Continua para o próximo processo
 
@@ -84,6 +85,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 if cliente_STATUS[0] != 'L':
                     logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
                     cliente_erro(ID_processo)  # Marca este processo com erro
+                    log_error(ID_processo,cod_cliente,numero_processo,"Cliente não está ativo na API")
                     erro_no_cliente = True
                     continue  # Continua para o próximo processo
 
