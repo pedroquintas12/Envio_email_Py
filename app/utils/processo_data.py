@@ -180,17 +180,17 @@ def status_processo(processo_id):
 
 # Insere no banco o email enviado
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
-                data_do_dia, localizador_email, email_receiver, numero, permanent_url, Origem):
+                data_do_dia, localizador_email, email_receiver, numero, permanent_url, Origem, total_processos):
 
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
                     INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
-                                            data_envio, localizador, email_envio, numero_envio, link_s3, Origem,data_hora_envio)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s)
+                                            data_envio, localizador, email_envio, numero_envio, link_s3, Origem, total,data_hora_envio)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s,%s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
-                    localizador_email, email_receiver, numero, permanent_url, Origem,datetime.now()))
+                    localizador_email, email_receiver, numero, permanent_url, Origem,total_processos,datetime.now()))
                 
                 db_connection.commit()
 
@@ -264,11 +264,12 @@ def historio_env():
                     cod_escritorio,
                     localizador,
                     origem,
+                    total,
                     MAX(data_hora_envio) AS ultima_data_envio
                 FROM 
                     apidistribuicao.envio_emails
                 GROUP BY 
-                    cod_escritorio, localizador, origem
+                    cod_escritorio, localizador, origem,total
                 ORDER BY
                     ultima_data_envio DESC
                 LIMIT 10;

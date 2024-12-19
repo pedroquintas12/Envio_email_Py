@@ -172,7 +172,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
                 status_processo(processo_id)
                 status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero,permanent_url,Origem)
+                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos))
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
     except Exception as err:
