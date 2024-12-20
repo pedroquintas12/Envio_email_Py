@@ -2,10 +2,10 @@ import requests
 from config.logger_config import logger
 from config import config
 
-def fetch_cliente_api(cod_cliente):
+def fetch_cliente_api(cod_cliente,token):
     try:
         api_url = f"{config.UrlApiLig}/offices?search={cod_cliente}"  
-        headers = {"Authorization": f"Bearer {config.TOKEN_APILIG}"}  # Inclui o token necessário
+        headers = {"Authorization": f"Bearer {token}"}  # Inclui o token necessário
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()
         cliente_data = response.json()
@@ -21,10 +21,10 @@ def fetch_cliente_api(cod_cliente):
         logger.error(f"Erro ao acessar a API de cliente: {err}")
         return "Erro na API"
     
-def fetch_email_api(Id_cliente):
+def fetch_email_api(Id_cliente,token):
     try:
         api_url = f"{config.UrlApiLig}/offices/emails?officesId={Id_cliente}"  
-        headers = {"Authorization": f"Bearer {config.TOKEN_APILIG}"}  # Inclui o token necessário
+        headers = {"Authorization": f"Bearer {token}"}  # Inclui o token necessário
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()
         cliente_data = response.json()
@@ -43,10 +43,10 @@ def fetch_email_api(Id_cliente):
         logger.error(f"Erro ao acessar a API de email: {err}")
         return "Erro na API"
 
-def fetch_numero_api(Id_cliente):
+def fetch_numero_api(Id_cliente,token):
     try:
         api_url = f"{config.UrlApiLig}/offices/whatsapp-numbers?officesId={Id_cliente}"
-        headers = {"Authorization": f"Bearer {config.TOKEN_APILIG}"}  # Inclui o token necessário
+        headers = {"Authorization": f"Bearer {token}"}  # Inclui o token necessário
         response = requests.get(api_url,headers=headers)
         response.raise_for_status()
         cliente_data = response.json()
@@ -67,10 +67,10 @@ def fetch_numero_api(Id_cliente):
 
 
 
-def fetch_cliente_api_dashboard(cod_cliente):
+def fetch_cliente_api_dashboard(cod_cliente, token):
     try:
         api_url = f"{config.UrlApiLig}/offices?search={cod_cliente}"  
-        headers = {"Authorization": f"Bearer {config.TOKEN_APILIG}"}  # Inclui o token necessário
+        headers = {"Authorization": f"Bearer {token}"}  # Inclui o token necessário
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()
         cliente_data = response.json()

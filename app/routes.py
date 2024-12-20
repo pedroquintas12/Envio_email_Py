@@ -27,6 +27,9 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
 
+        if 'api.token' in request.cookies:
+            token = request.cookies.get('api.token')
+
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
             if auth_header.startswith("Bearer "):
@@ -48,17 +51,45 @@ def token_required(f):
 
     return decorated
 
-# Função para enviar e-mails em background
-def enviar_emails_background(data_inicial=None, data_final=None, origem="API", email=None, codigo=None,status = None):
+def enviar_emails_background(data_inicial=None, data_final=None, origem="API", email=None, codigo=None, status=None, token=None, result_holder=None):
     try:
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} e data_final={data_final} código: {codigo} status: {status} para o email: {email}")
-        result = enviar_emails(data_inicial, data_final, origem, email, codigo,status)
-        if result:
-            status, code = result
-            logger.info(f"Envio de e-mails concluído com status={status}, código={code}")
+        
+        # Chamada da função de envio de e-mails
+        result = enviar_emails(data_inicial, data_final, origem, email, codigo, status, token)
+        status_result, code = result
+        # Verifica se status_result é um dicionário de erro
+        if isinstance(status_result, dict):
+            status_message = status_result.get('status', 'unknown')
+            message = status_result.get('message')  # Atualiza a mensagem com detalhes do erro, se presente
+        else:
+            status_message = status_result
+
+        # Armazena no result_holder se fornecido
+        if result_holder is not None:
+            result_holder["result"] = {
+                "status": status_message,
+                "message": message,
+                "code": code,
+            }
+
+        # Logs baseados no resultado
+        if code == 200:
+            logger.info(f"Envio de e-mails concluído com status={status_message}, código={code}, mensagem={message}")
+        else:
+            logger.error(f"Erro ao enviar email! Status: {status_message}, Código: {code}, Mensagem: {message}")
+        
     except Exception as e:
         logger.error(f"Erro ao enviar e-mails: {e}")
-        status, code = "erro", 500
+        
+        # Armazena a exceção no result_holder
+        if result_holder is not None:
+            result_holder["result"] = {
+                "status": "erro",
+                "message": str(e),
+                "code": 500,
+            }
+
         
 @main_bp.route('/api/dados')
 @token_required
@@ -78,19 +109,26 @@ def api_dados():
 @main_bp.route('/api/dados/pendentes')
 @token_required
 def api_dados_pendentes():
-    pendentes = pendentes_envio()
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]
+
+    pendentes = pendentes_envio(token)
     return jsonify({'pendentes':pendentes})
 
 @main_bp.route('/api/dados/historico')
 @token_required
 def api_dados_historico():
-    historico = historio_env()
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]    
+    historico = historio_env(token)
     return jsonify({'historico': historico})
 
 @main_bp.route('/api/dados/total')
 @token_required
 def api_dados_total():
-    total = total_geral()
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]
+    total = total_geral(token)
     return jsonify({'total_enviados':total})
 
 
@@ -98,6 +136,8 @@ def api_dados_total():
 @main_bp.route('/relatorio', methods=['POST'])
 @token_required
 def relatorio():
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     data_final = data.get('data_final')
@@ -121,21 +161,49 @@ def relatorio():
         response.status_code = 500
         return response
 
-    if data_final and data_inicial and email:
-        response = jsonify({
-            "message": "Dentro de alguns minutos o relatório estará no seu e-mail!",
-            "total_processos": total_processos  # Adiciona o total de processos ao JSON
-        })
-        # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S"))
-        thread.start()
-        thread.join()
-        return response
+    result_holder = {}
+
+    # Processamento em segundo plano
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S",token))
+    thread.start()
+    thread.join()
+    
+    # Acessa o resultado do processamento
+    result = result_holder.get("result")
+    
+    # Verifica se o resultado foi obtido e processa a resposta
+    if result:
+        status = result.get('status')
+        message = result.get('message')
+        code = result.get('code')
+    else:
+        # Caso o resultado não tenha sido obtido, trata com erro
+        return jsonify({
+            "error": "Erro ao processar o envio de e-mails.",
+            "codigo": code,
+            "message": "Não foi possível obter o resultado do envio."
+        }), 500
+    
+    if code != 200:
+        return jsonify({
+            "error": message,
+            "codigo": code,
+            "status": status
+        }), 500
+    
+    return jsonify({
+        "message": "Relatório enviado",
+        "resultado": result,
+        "total_processos": total_processos
+    }), 200
+
 
 # Rota para gerar e enviar relatório específico
 @main_bp.route('/relatorio_especifico', methods=['POST'], endpoint='/relatorio_especifico')
 @token_required
 def relatorio_especifico():
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]    
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     data_final = data.get('data_final')
@@ -161,20 +229,47 @@ def relatorio_especifico():
         response.status_code = 500
         return response
 
-    if data_final and data_inicial and email and codigo:
-        response = jsonify({
-            "message": "Dentro de alguns minutos o relatório estará no seu e-mail!",
-            "total_processos": total_processos  # Adiciona o total de processos ao JSON
-        })
-        # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S"))
-        thread.start()
-        thread.join()
-        return response
+    result_holder = {}
+
+    # Processamento em segundo plano
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S",token))
+    thread.start()
+    thread.join()
+
+    # Acessa o resultado do processamento
+    result = result_holder.get("result")
+    
+    # Verifica se o resultado foi obtido e processa a resposta
+    if result:
+        status = result.get('status')
+        message = result.get('message')
+        code = result.get('code')
+    else:
+        # Caso o resultado não tenha sido obtido, trata com erro
+        return jsonify({
+            "error": "Erro ao processar o envio de e-mails.",
+            "codigo": code,
+            "message": "Não foi possível obter o resultado do envio."
+        }), 500
+    
+    if code != 200:
+        return jsonify({
+            "error": message,
+            "codigo": code,
+            "status": status
+        }), 500
+    
+    return jsonify({
+        "message": "Relatório enviado",
+        "resultado": result,
+        "total_processos": total_processos
+    }), 200
         
 @main_bp.route('/send_pending', methods=['POST'])
 @token_required
 def send_pending():
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     email = data.get('email')
@@ -196,16 +291,40 @@ def send_pending():
         response = jsonify({"error": "Nenhum dado encontrado para o dia selecionado!"})
         response.status_code = 500
         return response
+    
+    result_holder = {}
 
-    if data_final and data_inicial and email and codigo:
-        response = jsonify({
-            "message": "Dentro de alguns minutos o relatório estará no seu e-mail!",
-            "total_processos": total_processos  
-        })
-        # Processamento em segundo plano
-        thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,status))
-        thread.start()
-        thread.join()
-        return response        
-
+    # Processamento em segundo plano
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo, status, token, result_holder))
+    thread.start()
+    thread.join()
+    
+    # Acessa o resultado do processamento
+    result = result_holder.get("result")
+    
+    # Verifica se o resultado foi obtido e processa a resposta
+    if result:
+        status = result.get('status')
+        message = result.get('message')
+        code = result.get('code')
+    else:
+        # Caso o resultado não tenha sido obtido, trata com erro
+        return jsonify({
+            "error": "Erro ao processar o envio de e-mails.",
+            "codigo": code,
+            "message": "Não foi possível obter o resultado do envio."
+        }), 500
+    
+    if code != 200:
+        return jsonify({
+            "error": message,
+            "codigo": code,
+            "status": status
+        }), 500
+    
+    return jsonify({
+        "message": "Relatório enviado",
+        "resultado": result,
+        "total_processos": total_processos
+    }), 200
 

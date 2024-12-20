@@ -16,7 +16,7 @@ from config import config
 import locale
 from dateutil.relativedelta import relativedelta
 
-def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None):
+def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,token =None):
     try:
         
         data_do_dia = datetime.now()
@@ -27,7 +27,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             data_fim_br = data_fim_obj.strftime("%d/%m/%Y")
 
         # Busca os dados dos clientes e processos
-        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo,status,Origem)
+        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo,status,Origem,token)
 
         contador_Inativos = 0
 
@@ -52,7 +52,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             cliente_STATUS = processos[0]['cliente_status']
             cod_cliente = processos[0]['cod_escritorio']
             Office_id = processos[0]['office_id']
-            cliente_number = fetch_numero_api(Office_id)
+            cliente_number = fetch_numero_api(Office_id,token)
             emails = fetch_email_api(Office_id)
 
             env = config.ENV
@@ -175,8 +175,12 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                                 data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos))
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
+        return {"status": "success", "message": "Emails enviados com sucesso"}, 200
+
     except Exception as err:
         logger.error(f"Erro ao executar o envio: {err}")
+        return {"status": "error", "message": str(err)},500
+       
 
 def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, queue):
     try:

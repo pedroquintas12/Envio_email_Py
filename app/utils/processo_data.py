@@ -8,7 +8,7 @@ import mysql.connector
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Captura todos os dados do processo
-def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem):
+def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem,token):
     clientes_data = {}
     try:
         db_connection = get_db_connection()
@@ -57,7 +57,7 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
             for process in processes:
-                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict))
+                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict,token))
 
         # Wait for all futures to finish
         concurrent.futures.wait(futures)
@@ -110,8 +110,8 @@ def fetch_autores_reus_links(tipo, processes):
     
     return data_dict
 
-def process_result(process, clientes_data, autor_dict, reu_dict, links_dict):
-    clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'])
+def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,token):
+    clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'],token)
     num_processo = process['numero_processo']
     data_distribuicao = process['data_distribuicao'].strftime('%d/%m/%Y')
     tribunal = process['tribunal']
@@ -255,7 +255,7 @@ def formatar_data(data):
         return data.strftime("%d/%m/%Y %H:%M:%S")
     return None
 
-def historio_env():
+def historio_env(token):
     try:
         listnmes = []
         db_connection = get_db_connection()
@@ -283,7 +283,7 @@ def historio_env():
         # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(fetch_cliente_api_dashboard, registro['cod_escritorio']): index
+                executor.submit(fetch_cliente_api_dashboard, registro['cod_escritorio'], token): index
                 for index, registro in indexed_data.items()
             }
 
@@ -308,7 +308,7 @@ def historio_env():
         logger.error(f"Erro ao puxar historico de envio {e}")
 
 
-def pendentes_envio():
+def pendentes_envio(token):
     try:
         listnmes = []
         db_connection = get_db_connection()
@@ -337,7 +337,7 @@ def pendentes_envio():
         # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(fetch_cliente_api_dashboard, registro['Cod_escritorio']): index
+                executor.submit(fetch_cliente_api_dashboard, registro['Cod_escritorio'], token): index
                 for index, registro in indexed_data.items()
             }
 
@@ -361,7 +361,7 @@ def pendentes_envio():
         logger.error(f"Erro ao puxar pendentes {e}")
 
 
-def total_geral():
+def total_geral(token):
     data = datetime.now()
     ano = data.year
     mes = data.month
@@ -391,7 +391,7 @@ def total_geral():
         # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(fetch_cliente_api_dashboard, registro['Codigo_VSAP']): index
+                executor.submit(fetch_cliente_api_dashboard, registro['Codigo_VSAP'],token): index
                 for index, registro in indexed_data.items()
             }
 
