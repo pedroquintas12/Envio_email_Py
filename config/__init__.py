@@ -21,3 +21,5 @@ class config:
     UrlApiProd = os.getenv("UrlApiProd")
     UrlApiTest = os.getenv("UrlApiTest")
     TOKEN_APILIG = os.getenv("TOKEN_APILIG")
+    USERNAME = os.getenv("username_api")
+    PASSWORD = os.getenv("password_api")

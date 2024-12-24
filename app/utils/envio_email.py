@@ -53,7 +53,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             cod_cliente = processos[0]['cod_escritorio']
             Office_id = processos[0]['office_id']
             cliente_number = fetch_numero_api(Office_id,token)
-            emails = fetch_email_api(Office_id)
+            emails = fetch_email_api(Office_id,token)
 
             env = config.ENV
 

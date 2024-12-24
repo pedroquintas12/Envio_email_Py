@@ -7,12 +7,11 @@ import jwt
 import requests
 from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
-from flask import Blueprint, jsonify, make_response, redirect, render_template, request, url_for
-from app.utils.processo_data import validar_dados
+from flask import Blueprint, jsonify, request
 from config import config
-from app.utils.processo_data import total_geral
-from app.utils.processo_data import historio_env
-from app.utils.processo_data import pendentes_envio
+from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados
+from config.JWT_helper import save_token_in_cache,get_cached_token, get_random_cached_token
+
 
 main_bp = Blueprint('main', __name__)
 
@@ -22,21 +21,45 @@ if config.ENV == 'test':
 if config.ENV == 'production':
     UrlApiProd = config.UrlApiProd
 
+def obter_token():
+    """
+    Obtém o token da requisição, seja do cabeçalho Authorization ou dos cookies.
+
+    Returns:
+        str: O token JWT extraído, ou None se não estiver presente.
+    """
+    token = None
+
+    # Verifica se o token está nos cookies
+    if 'api.token' in request.cookies:
+        token = request.cookies.get('api.token')
+
+    # Verifica se o token está no cabeçalho Authorization
+    if 'Authorization' in request.headers:
+        auth_header = request.headers['Authorization']
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+    return token
+
+@main_bp.route('/save-token', methods=['POST'])
+def save_token():
+    token = obter_token()
+    if not token:
+        return jsonify({"error": "Token is required"}), 400
+    
+    save_token_in_cache(token)
+    
+    return jsonify({"message": "Token saved successfully"}), 200
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = None
-
-        if 'api.token' in request.cookies:
-            token = request.cookies.get('api.token')
-
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
+        token = obter_token()
         
         if not token:
             return jsonify({"error": "Token obrigatorio"}), 401
+        
+        get_cached_token(token)
 
         try:
             # Decodificar e validar o token
@@ -62,6 +85,7 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
         if isinstance(status_result, dict):
             status_message = status_result.get('status', 'unknown')
             message = status_result.get('message')  # Atualiza a mensagem com detalhes do erro, se presente
+            codigo_api = code
         else:
             status_message = status_result
 
@@ -70,14 +94,14 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
             result_holder["result"] = {
                 "status": status_message,
                 "message": message,
-                "code": code,
+                "code": codigo_api,
             }
 
         # Logs baseados no resultado
-        if code == 200:
-            logger.info(f"Envio de e-mails concluído com status={status_message}, código={code}, mensagem={message}")
+        if codigo_api == 200:
+            logger.info(f"Envio de e-mails concluído com status={status_message}, código={codigo_api}, mensagem={message}")
         else:
-            logger.error(f"Erro ao enviar email! Status: {status_message}, Código: {code}, Mensagem: {message}")
+            logger.error(f"Erro ao enviar email! Status: {status_message}, Código: {codigo_api}, Mensagem: {message}")
         
     except Exception as e:
         logger.error(f"Erro ao enviar e-mails: {e}")
@@ -90,7 +114,6 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
                 "code": 500,
             }
 
-        
 @main_bp.route('/api/dados')
 @token_required
 def api_dados():
@@ -238,7 +261,7 @@ def relatorio_especifico():
 
     # Acessa o resultado do processamento
     result = result_holder.get("result")
-    
+    print(f"json api: {result}")
     # Verifica se o resultado foi obtido e processa a resposta
     if result:
         status = result.get('status')
