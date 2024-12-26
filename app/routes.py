@@ -149,11 +149,23 @@ def api_dados_historico():
 @main_bp.route('/api/dados/total')
 @token_required
 def api_dados_total():
-    auth_header = request.headers['Authorization']
-    token = auth_header.split(" ")[1]
-    total = total_geral(token)
-    return jsonify({'total_enviados':total})
-
+    # Obtém o token do header de autorização
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
+    
+    # Verifica se o token existe
+    if not token:
+        return jsonify({"error": "Token inválido ou ausente."}), 403
+    
+    # Obtém os parâmetros start e end (se existirem) da query string
+    start_date = request.args.get('start')  # Data de início (opcional)
+    end_date = request.args.get('end')      # Data de fim (opcional)
+    
+    # Chamando a função total_geral, passando o token e as datas se existirem
+    total = total_geral(token, start_date, end_date)
+    
+    # Retorna os dados no formato JSON
+    return jsonify({'total_enviados': total})
 
 # Rota para gerar e enviar relatório
 @main_bp.route('/relatorio', methods=['POST'])

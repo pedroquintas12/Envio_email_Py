@@ -315,7 +315,6 @@ def pendentes_envio(token):
         db_cursor = db_connection.cursor(dictionary=True)
         query = """SELECT
                     p.Cod_escritorio,
-                    c.Cliente_VSAP,    
                     COUNT(p.Cod_escritorio) AS Total
                 FROM 
                     apidistribuicao.processo p
@@ -361,7 +360,7 @@ def pendentes_envio(token):
         logger.error(f"Erro ao puxar pendentes {e}")
 
 
-def total_geral(token):
+def total_geral(token, start_date=None, end_date=None):
     data = datetime.now()
     ano = data.year
     mes = data.month
@@ -372,16 +371,26 @@ def total_geral(token):
         db_cursor = db_connection.cursor(dictionary=True)
         query = f"""SELECT
                         MAX(c.Cod_Escritorio) AS Codigo_VSAP,
-                        c.Cliente_VSAP AS clienteVSAP,
                         COUNT(p.ID_processo) AS totalDistribuicoes
                     FROM
                         apidistribuicao.processo AS p
                         INNER JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio
                     WHERE
-                        p.deleted = 0 AND DATE(p.data_insercao) between '{ano}-{mes}-01' and '{data_inicio_obj}'
-                    GROUP BY 
+                        p.deleted = 0
+                    """
+        
+        # Condição para a data atual (sem filtro de data)
+        if not start_date and not end_date:
+            query += f" AND DATE(p.data_insercao) BETWEEN '{ano}-{mes}-01' AND '{data_inicio_obj}' "
+        
+        # Condição para o filtro de data especificado (com start_date e end_date)
+        if start_date and end_date:
+            query += f" AND DATE(p.data_insercao) BETWEEN '{start_date}' AND '{end_date}' "
+        
+        query += """ GROUP BY 
                         Cliente_VSAP
-                    ORDER BY  totalDistribuicoes DESC LIMIT 7;"""
+                    ORDER BY totalDistribuicoes DESC;"""
+        
         db_cursor.execute(query)
         dados = db_cursor.fetchall()
 
