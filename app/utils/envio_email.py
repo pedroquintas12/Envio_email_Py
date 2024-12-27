@@ -16,7 +16,7 @@ from config import config
 import locale
 from dateutil.relativedelta import relativedelta
 
-def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,token =None):
+def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,numero_processo=None,token =None):
     try:
         
         data_do_dia = datetime.now()
@@ -27,7 +27,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             data_fim_br = data_fim_obj.strftime("%d/%m/%Y")
 
         # Busca os dados dos clientes e processos
-        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo,status,Origem,token)
+        clientes_data = fetch_processes_and_clients(data_inicio,data_fim,codigo,numero_processo,status,Origem,token)
 
         contador_Inativos = 0
 
@@ -166,7 +166,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 processo_id = processo['ID_processo']
 
                 if cliente_number and isinstance(cliente_number, list):
-                    numero = ', '.join(item['numero'] for item in cliente_number if 'numero' in item)
+                        numero = ', '.join(cliente_number)                
                 else:
                     numero = "Cliente não tem número cadastrado na API"  
 

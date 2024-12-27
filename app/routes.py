@@ -9,7 +9,7 @@ from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
 from config import config
-from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados
+from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients
 from config.JWT_helper import save_token_in_cache,get_cached_token, get_random_cached_token
 
 
@@ -74,12 +74,12 @@ def token_required(f):
 
     return decorated
 
-def enviar_emails_background(data_inicial=None, data_final=None, origem="API", email=None, codigo=None, status=None, token=None, result_holder=None):
+def enviar_emails_background(data_inicial=None, data_final=None, origem="API", email=None, codigo=None, status=None,numero_processo=None ,token=None, result_holder=None):
     try:
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} e data_final={data_final} código: {codigo} status: {status} para o email: {email}")
         
         # Chamada da função de envio de e-mails
-        result = enviar_emails(data_inicial, data_final, origem, email, codigo, status, token)
+        result = enviar_emails(data_inicial, data_final, origem, email, codigo, status, numero_processo,token)
         status_result, code = result
         # Verifica se status_result é um dicionário de erro
         if isinstance(status_result, dict):
@@ -114,20 +114,22 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
                 "code": 500,
             }
 
-@main_bp.route('/api/dados')
+@main_bp.route('/api/search', methods=['POST'])
 @token_required
-def api_dados():
+def search():
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
+    
+    # Verifica se o token existe
+    if not token:
+        return jsonify({"error": "Token inválido ou ausente."}), 403
+    
+    numero_processo = request.args.get('process')  # Data de início (opcional)
 
-    historico = historio_env()
-    pendentes = pendentes_envio()
-    total = total_geral()
+    result = fetch_processes_and_clients(data_inicio=None, data_fim=None,codigo=None,numero_processo=numero_processo,status=None, origem="API", token=token)
 
-    # Retornar os dados como JSON
-    return jsonify({
-        'historico': historico,
-        'pendentes': pendentes,
-        'total_enviados': total
-    })
+    return jsonify({"resultado": result})
+
 
 @main_bp.route('/api/dados/pendentes')
 @token_required
@@ -199,7 +201,7 @@ def relatorio():
     result_holder = {}
 
     # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S",token))
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S",None,token,result_holder))
     thread.start()
     thread.join()
     
@@ -267,7 +269,7 @@ def relatorio_especifico():
     result_holder = {}
 
     # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S",token))
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S",None,token,result_holder))
     thread.start()
     thread.join()
 
@@ -330,7 +332,7 @@ def send_pending():
     result_holder = {}
 
     # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo, status, token, result_holder))
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo, status, None,token, result_holder))
     thread.start()
     thread.join()
     

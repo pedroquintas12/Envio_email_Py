@@ -8,7 +8,7 @@ import mysql.connector
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Captura todos os dados do processo
-def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem,token):
+def fetch_processes_and_clients(data_inicio, data_fim, codigo,numero_processo, status, origem,token):
     clientes_data = {}
     try:
         db_connection = get_db_connection()
@@ -20,29 +20,38 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem,to
                         p.orgao_julgador, p.tipo_processo, p.status, 
                         p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, p.tribunal, 
                         p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
-                        p.tipo_processo 
+                        p.tipo_processo,
+                        p.data_insercao,
+                        p.status,
+                        p.modified_date
                     FROM apidistribuicao.processo AS p """
+
+        if numero_processo:
+            query+="WHERE p.numero_processo = %s"
 
         if data_inicio and data_fim:
             query += "WHERE DATE(p.data_insercao) between  %s and %s "
 
             query += f"AND p.status = '{status}' "            
         
-        if not data_inicio and not data_fim and not codigo:
+        if not data_inicio and not data_fim and not codigo and not numero_processo:
                 query += "WHERE p.status = 'P' "
         if codigo:
             query+= "AND p.Cod_escritorio = %s "
             
         query+= """GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
-                            p.uf, p.sigla_sistema, p.tribunal,ID_processo;
+                            p.uf, p.sigla_sistema, p.tribunal,ID_processo,data_insercao,status,modified_date;
                 """
-        if codigo:
+        if numero_processo:
+            db_cursor.execute(query,(numero_processo,))
+
+        if data_inicio and data_fim and codigo:
             db_cursor.execute(query, (data_inicio, data_fim, codigo)) 
 
         if data_inicio and data_fim and not codigo:
             db_cursor.execute(query, (data_inicio, data_fim))
 
-        if not data_inicio and not data_fim and not codigo:
+        if not data_inicio and not data_fim and not codigo and not numero_processo:
             db_cursor.execute(query)
 
         processes = db_cursor.fetchall()
@@ -52,12 +61,12 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo, status, origem,to
             autor_dict = fetch_autores_reus_links("autor", processes)
             reu_dict = fetch_autores_reus_links("reu", processes)
             links_dict = fetch_autores_reus_links("links", processes)
-
+            email_enviado = fetch_autores_reus_links("localizador",processes)
         #utiliza o multithreds para otimizar o processamento de dados
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
             for process in processes:
-                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict,token))
+                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,token))
 
         # Wait for all futures to finish
         concurrent.futures.wait(futures)
@@ -92,6 +101,18 @@ def fetch_autores_reus_links(tipo, processes):
                     query = """SELECT ID_processo, ID_Doc_incial as id_link, link_documento as link_doc, tipo as tipoLink 
                             FROM apidistribuicao.processo_docinicial 
                             WHERE ID_processo IN (%s) AND doc_peticao_inicial=0"""
+                elif tipo == "localizador":
+                    query= """SELECT 
+                        ID_processo,
+                        localizador,
+                        link_s3,
+                        total,
+                        email_envio,
+                        numero_envio,
+                        Origem,
+                        data_hora_envio
+                    FROM apidistribuicao.envio_emails
+                    WHERE ID_processo IN (%s)"""
                 
                 # Converter a lista de IDs para um formato que possa ser usado no SQL
                 format_strings = ','.join(['%s'] * len(ids))
@@ -104,13 +125,15 @@ def fetch_autores_reus_links(tipo, processes):
                     process_id = row['ID_processo']
                     if process_id not in data_dict:
                         data_dict[process_id] = []
+                    if 'data_hora_envio' in row and row['data_hora_envio']:
+                        row['data_hora_envio'] = formatar_data(row['data_hora_envio'])
                     data_dict[process_id].append(row)
     except Exception as err:
         logger.error(f"Erro ao carregar {tipo}: {err}")
     
     return data_dict
 
-def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,token):
+def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,token):
     clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'],token)
     num_processo = process['numero_processo']
     data_distribuicao = process['data_distribuicao'].strftime('%d/%m/%Y')
@@ -118,11 +141,15 @@ def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,toke
     uf = process['uf']
     instancia = process['instancia']
     comarca = process['sigla_sistema']
-    
+    modified_date = process['modified_date']
+    status = process['status']
+    data_insercao = formatar_data(process["data_insercao"]) if process["data_insercao"] else None
+
     # Pega os autores, réus e links dos dicionários pré-carregados
     autor_list = autor_dict.get(process['ID_processo'], [{"nomeAutor": "[Nenhum dado disponível]"}])
     reu_list = reu_dict.get(process['ID_processo'], [{"nomeReu": "[Nenhum dado disponível]"}])
     links_list = links_dict.get(process['ID_processo'], [])
+    envio_emailList = email_enviado.get(process['ID_processo'], [])
 
     # Adiciona os dados ao cliente
     if clienteVSAP not in clientes_data:
@@ -146,8 +173,51 @@ def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,toke
         'tipo_processo': process['tipo_processo'],
         'cliente_status': office_status,
         'office_id': Office_id,
+        'modified_date': modified_date,
+        'status': status,
+        'data_insercao': data_insercao,
+        'email_enviado': envio_emailList
     })
 
+
+def fetch_email_locator(localizador):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                query = """
+                    SELECT 
+                        localizador,
+                        link_s3,
+                        total,
+                        email_envio,
+                        numero_envio,
+                        Origem,
+                        data_hora_envio
+                    FROM apidistribuicao.envio_emails
+                    WHERE localizador_processo = %s
+                """
+                db_cursor.execute(query, tuple(localizador))
+                results = db_cursor.fetchall()
+                
+                # Transformar os resultados em uma lista de dicionários formatados
+                formatted_results = [
+                    {
+                        "localizador": row["localizador"],
+                        "link_s3": row["link_s3"],
+                        "total": row["total"],
+                        "email_envio": row["email_envio"],
+                        "numero_envio": row["numero_envio"],
+                        "origem": row["Origem"],
+                        "data_hora_envio": formatar_data(row["data_hora_envio"]) if row["data_hora_envio"] else None,
+                    }
+                    for row in results
+                ]
+                
+                return formatted_results
+
+    except Exception as err:
+        logger.error(f"Erro na consulta do banco envio_email: {err}")
+        return []
 
 # Puxa todos os dados necessários para envio de email e WhatsApp (SMTP/URL API)
 def fetch_companies():
