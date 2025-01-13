@@ -62,11 +62,12 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo,numero_processo, s
             reu_dict = fetch_autores_reus_links("reu", processes)
             links_dict = fetch_autores_reus_links("links", processes)
             email_enviado = fetch_autores_reus_links("localizador",processes)
+            Log_erro = fetch_autores_reus_links("log_erro", processes)
         #utiliza o multithreds para otimizar o processamento de dados
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
             for process in processes:
-                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,token))
+                futures.append(executor.submit(process_result, process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,Log_erro,token))
 
         # Wait for all futures to finish
         concurrent.futures.wait(futures)
@@ -113,6 +114,9 @@ def fetch_autores_reus_links(tipo, processes):
                         data_hora_envio
                     FROM apidistribuicao.envio_emails
                     WHERE ID_processo IN (%s)"""
+                elif tipo == "log_erro":
+                    query = """SELECT Id_LogErro,ID_processo,motivo,created_date 
+                    FROM log_erro WHERE ID_processo IN (%s)"""
                 
                 # Converter a lista de IDs para um formato que possa ser usado no SQL
                 format_strings = ','.join(['%s'] * len(ids))
@@ -125,15 +129,17 @@ def fetch_autores_reus_links(tipo, processes):
                     process_id = row['ID_processo']
                     if process_id not in data_dict:
                         data_dict[process_id] = []
-                    if 'data_hora_envio' in row and row['data_hora_envio']:
+                    if 'data_hora_envio'  in row and row['data_hora_envio']:
                         row['data_hora_envio'] = formatar_data(row['data_hora_envio'])
+                    if 'created_date' in row and row['created_date']:
+                        row['created_date'] = formatar_data(row['created_date'])    
                     data_dict[process_id].append(row)
     except Exception as err:
         logger.error(f"Erro ao carregar {tipo}: {err}")
     
     return data_dict
 
-def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,token):
+def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,Log_erro,token):
     clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'],token)
     num_processo = process['numero_processo']
     data_distribuicao = process['data_distribuicao'].strftime('%d/%m/%Y')
@@ -150,6 +156,7 @@ def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,emai
     reu_list = reu_dict.get(process['ID_processo'], [{"nomeReu": "[Nenhum dado disponível]"}])
     links_list = links_dict.get(process['ID_processo'], [])
     envio_emailList = email_enviado.get(process['ID_processo'], [])
+    Log_erroList = Log_erro.get(process['ID_processo'], [])
 
     # Adiciona os dados ao cliente
     if clienteVSAP not in clientes_data:
@@ -176,7 +183,8 @@ def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,emai
         'modified_date': modified_date,
         'status': status,
         'data_insercao': data_insercao,
-        'email_enviado': envio_emailList
+        'email_enviado': envio_emailList,
+        'Log_erro': Log_erroList
     })
 
 

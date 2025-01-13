@@ -10,7 +10,7 @@ from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
 from config import config
 from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients
-from config.JWT_helper import save_token_in_cache,get_cached_token, get_random_cached_token
+from config.JWT_helper import save_token_in_cache,get_cached_token,list_all_cached_tokens
 
 
 main_bp = Blueprint('main', __name__)
@@ -96,7 +96,7 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
                 "message": message,
                 "code": codigo_api,
             }
-
+        
         # Logs baseados no resultado
         if codigo_api == 200:
             logger.info(f"Envio de e-mails concluído com status={status_message}, código={codigo_api}, mensagem={message}")
@@ -365,3 +365,17 @@ def send_pending():
         "total_processos": total_processos
     }), 200
 
+
+
+@main_bp.route('/api/tokens', methods=['GET'])
+@token_required
+def get_all_cached_tokens():
+    """
+    Retorna todos os tokens armazenados no cache.
+    """
+
+    tokens = list_all_cached_tokens()
+    if tokens is None:
+        return jsonify({"message": "Cache vazio.", "tokens": []}), 200
+
+    return jsonify({"tokens": tokens}), 200

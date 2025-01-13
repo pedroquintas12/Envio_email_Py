@@ -63,8 +63,8 @@ def get_cached_token(token_identifier):
         # Renova o token se faltar menos de 5 minutos para expirar
         if time_to_expire < 300:  # 5 minutos
             logger.warning("Token próximo de expirar. Renovando...")
-            token = refresh_token()
-            return token
+            new_token = refresh_token()
+            return new_token
         return token_identifier
     else:
         logger.error("Token não encontrado no cache ou já expirado.")
@@ -130,3 +130,16 @@ def get_random_cached_token():
     token_valid = get_cached_token(random_token_key)
 
     return token_valid
+
+def list_all_cached_tokens():
+    """
+    Retorna uma lista de todos os tokens no cache com informações de expiração.
+    """
+    tokens = []
+    for token, data in token_cache.items():
+        expiration = data.get("expiration", "Sem expiração registrada")
+        tokens.append({
+            "token": token,
+            "expiration": expiration.strftime('%Y-%m-%d %H:%M:%S') if isinstance(expiration, datetime) else expiration
+        })
+    return tokens
