@@ -10,15 +10,18 @@ from scripts.send_whatsapp import enviar_mensagem_whatsapp
 from scripts.uploud_To_S3 import upload_html_to_s3
 from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,status_processo,cliente_erro, log_error
 from app.apiLig import fetch_email_api,fetch_numero_api
+from config.JWT_helper import get_random_cached_token
 from config import config
 
 
 import locale
 from dateutil.relativedelta import relativedelta
 
-def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,numero_processo=None,token =None):
+def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,numero_processo=None, token = None):
     try:
         
+        token = get_random_cached_token(Refresh=True)
+
         data_do_dia = datetime.now()
         if Origem == "API":
             data_inicio_obj = datetime.strptime(data_inicio, "%Y-%m-%d")
@@ -169,10 +172,11 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         numero = ', '.join(cliente_number)                
                 else:
                     numero = "Cliente não tem número cadastrado na API"  
-
-                status_processo(processo_id)
-                status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos))
+                    
+                if Origem == "Automatico":
+                    status_processo(processo_id)
+                    status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
+                                    data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos))
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200

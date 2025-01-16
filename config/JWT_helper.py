@@ -47,7 +47,7 @@ def save_token_in_cache(token):
         logger.error(f"Erro ao salvar token no cache: {e}")
 
 
-def get_cached_token(token_identifier):
+def get_cached_token(token_identifier, Refresh):
     """
     Recupera um token do cache pelo identificador e verifica se está próximo de expirar.
     Se o token estiver prestes a expirar, ele será renovado.
@@ -60,6 +60,16 @@ def get_cached_token(token_identifier):
 
         logger.info(f"Tempo restante para o token expirar: {time_to_expire} segundos.")
 
+        if time_to_expire <= 0:
+            logger.warning("Token expirado.")
+            if Refresh:
+                logger.info("Criando um novo token, Refresh habilitado.")
+                new_token = refresh_token()
+                return new_token
+            else:
+                logger.error("Token expirado e Refresh não está habilitado.")
+                return None
+            
         # Renova o token se faltar menos de 5 minutos para expirar
         if time_to_expire < 300:  # 5 minutos
             logger.warning("Token próximo de expirar. Renovando...")
@@ -107,7 +117,7 @@ def remove_expired_tokens():
 
 
 
-def get_random_cached_token():
+def get_random_cached_token(Refresh = False):
     """
     Recupera um token aleatório que está salvo no cache. Caso o cache esteja vazio,
     solicita um novo token através do refresh_token().
@@ -127,7 +137,7 @@ def get_random_cached_token():
     random_token_key = random.choice(list(token_cache.keys()))
     
     # Verifica se o token recuperado está válido
-    token_valid = get_cached_token(random_token_key)
+    token_valid = get_cached_token(random_token_key, Refresh)
 
     return token_valid
 

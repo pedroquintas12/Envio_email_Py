@@ -466,11 +466,13 @@ def total_geral(token, start_date=None, end_date=None):
             query += f" AND DATE(p.data_insercao) BETWEEN '{start_date}' AND '{end_date}' "
         
         query += """ GROUP BY 
-                        Cliente_VSAP
+                        Cliente_VSAP 
                     ORDER BY totalDistribuicoes DESC;"""
         
         db_cursor.execute(query)
         dados = db_cursor.fetchall()
+
+        total_geral_distribuicoes = sum([registro['totalDistribuicoes'] for registro in dados if 'totalDistribuicoes' in registro])
 
         # Mapeando registros com índices
         indexed_data = {i: registro for i, registro in enumerate(dados)}
@@ -494,7 +496,11 @@ def total_geral(token, start_date=None, end_date=None):
         # Reconstruindo a lista na ordem original
         listnmes = [indexed_data[i] for i in sorted(indexed_data)]
 
-        return listnmes
+        resultado = {
+            "detalhes": listnmes,
+            "total_distribuicoes": total_geral_distribuicoes
+        }
+        return resultado
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar historico total {err}")

@@ -59,7 +59,7 @@ def token_required(f):
         if not token:
             return jsonify({"error": "Token obrigatorio"}), 401
         
-        get_cached_token(token)
+        get_cached_token(token,False)
 
         try:
             # Decodificar e validar o token
@@ -74,7 +74,7 @@ def token_required(f):
 
     return decorated
 
-def enviar_emails_background(data_inicial=None, data_final=None, origem="API", email=None, codigo=None, status=None,numero_processo=None ,token=None, result_holder=None):
+def enviar_emails_background(data_inicial=None, data_final=None, origem="API", email=None, codigo=None, status=None,numero_processo=None , result_holder=None, token =None):
     try:
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} e data_final={data_final} código: {codigo} status: {status} para o email: {email}")
         
@@ -173,13 +173,12 @@ def api_dados_total():
 @main_bp.route('/relatorio', methods=['POST'])
 @token_required
 def relatorio():
-    auth_header = request.headers['Authorization']
-    token = auth_header.split(" ")[1]
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     data_final = data.get('data_final')
     email = data.get('email') 
-
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
     # Validação dos dados de entrada
     if not data_inicial or not data_final:
         response = jsonify({"Campos de 'data' obrigatorios!"})
@@ -201,7 +200,7 @@ def relatorio():
     result_holder = {}
 
     # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S",None,token,result_holder))
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, None, "S",None,result_holder, token))
     thread.start()
     thread.join()
     
@@ -238,15 +237,15 @@ def relatorio():
 # Rota para gerar e enviar relatório específico
 @main_bp.route('/relatorio_especifico', methods=['POST'], endpoint='/relatorio_especifico')
 @token_required
-def relatorio_especifico():
-    auth_header = request.headers['Authorization']
-    token = auth_header.split(" ")[1]    
+def relatorio_especifico(): 
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     data_final = data.get('data_final')
     email = data.get('email')
     codigo = data.get('codigo')
-    
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
+
     if not data_inicial or not data_final:
         response = jsonify({"Campos de 'data' obrigatorios!"})
         response.status_code = 500
@@ -269,13 +268,12 @@ def relatorio_especifico():
     result_holder = {}
 
     # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S",None,token,result_holder))
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo,"S",None,result_holder, token))
     thread.start()
     thread.join()
 
     # Acessa o resultado do processamento
     result = result_holder.get("result")
-    print(f"json api: {result}")
     # Verifica se o resultado foi obtido e processa a resposta
     if result:
         status = result.get('status')
@@ -305,13 +303,13 @@ def relatorio_especifico():
 @main_bp.route('/send_pending', methods=['POST'])
 @token_required
 def send_pending():
-    auth_header = request.headers['Authorization']
-    token = auth_header.split(" ")[1]
     data = request.get_json()
     data_inicial = data.get('data_inicial')
     email = data.get('email')
     codigo = data.get('codigo')
     status = data.get('Status')
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
 
     data_final = data_inicial
     
@@ -332,7 +330,7 @@ def send_pending():
     result_holder = {}
 
     # Processamento em segundo plano
-    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo, status, None,token, result_holder))
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "API", email, codigo, status, None, result_holder, token))
     thread.start()
     thread.join()
     
