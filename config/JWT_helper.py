@@ -17,7 +17,7 @@ if config.ENV == 'production':
     UrlApiProd = config.UrlApiProd
 
 # URL para renovar tokens
-TOKEN_REFRESH_URL = f"{UrlApiProd}/login"
+TOKEN_REFRESH_URL = f"http://26.214.86.184:8080/login"
 
 def save_token_in_cache(token):
     """
