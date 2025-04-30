@@ -261,17 +261,17 @@ def status_processo(processo_id):
 
 # Insere no banco o email enviado
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
-                data_do_dia, localizador_email, email_receiver, numero, permanent_url, Origem, total_processos,status):
+                data_do_dia, localizador_email, email_receiver,menssagem ,numero, permanent_url, Origem, total_processos,status):
 
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
                     INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
-                                            data_envio, localizador, email_envio, numero_envio, link_s3, Origem, total,data_hora_envio,status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s,%s,%s)
+                                            data_envio, localizador, email_envio,menssagem ,numero_envio, link_s3, Origem, total,data_hora_envio,status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s,%s ,%s, %s,%s, %s,%s,%s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
-                    localizador_email, email_receiver, numero, permanent_url, Origem,total_processos,datetime.now(),status))
+                    localizador_email, email_receiver, menssagem,numero, permanent_url, Origem,total_processos,datetime.now(),status))
                 
                 db_connection.commit()
 
@@ -571,6 +571,7 @@ def fetchLog(localizador):
                         ID_processo,
                         numero_processo,
                         email_envio,
+                        menssagem,
                         numero_envio,
                         data_hora_envio
                     FROM envio_emails
@@ -583,7 +584,9 @@ def fetchLog(localizador):
                     return {}
 
                 # Pegamos motivo e data do primeiro registro (são iguais para todos)
-                motivo = results[0]["email_envio"]
+                emails = results[0]["email_envio"]
+                menssagem = results[0]["menssagem"]
+                numero_envio = results[0]["numero_envio"]
                 created_date = formatar_data(results[0]["data_hora_envio"]) if results[0]["data_hora_envio"] else None
 
                 processos = [
@@ -595,7 +598,9 @@ def fetchLog(localizador):
                 ]
 
                 return {
-                    "motivo": motivo,
+                    "menssagem": menssagem,
+                    "email_envio": emails,
+                    "numero_envio": numero_envio,
                     "hora_envio": created_date,
                     "processos": processos
                 }

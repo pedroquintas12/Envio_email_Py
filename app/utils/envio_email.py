@@ -78,7 +78,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         # Adiciona erro no histórico
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
-                                    'NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E")
+                                    'N/A','NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E")
                         
                         erro_no_cliente = True
                         continue
@@ -89,7 +89,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         cliente_erro(ID_processo)  # Marca este processo com erro
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
-                                    'NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API', "N/A", None,
+                                    'N/A','NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API',"N/A", None,
                                       Origem, len(processos),"E")
                         erro_no_cliente = True                   
                         continue  # Continua para o próximo processo
@@ -100,7 +100,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         cliente_erro(ID_processo)  # Marca este processo com erro
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
-                                    f'NÃO ENVIADO - STATUS DO CLIENTE({cliente_STATUS})', "N/A", None, 
+                                    'N/A',f'NÃO ENVIADO - STATUS DO CLIENTE({cliente_STATUS})' ,"N/A", None, 
                                     Origem, len(processos),"E")
                         erro_no_cliente = True
                         continue  # Continua para o próximo processo
@@ -197,7 +197,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     status_processo(processo_id)
                 if Origem == "API" or Origem == "Automatico":
                     status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                    data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos),"S")
+                                    data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver,'SUCESSO',numero, permanent_url, Origem, len(processos),"S")
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
