@@ -122,8 +122,16 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 cc_receiver = smtp_envio_test
             if Origem == 'API' :
                 email_receiver = email
-                bcc_receivers = None
-                cc_receiver = smtp_envio_test
+
+                if env == 'test':
+                    bcc_receivers = None
+                else:
+                    bcc_receivers = smtp_bcc_emails
+                    
+                if env == 'test':
+                    cc_receiver = smtp_envio_test
+                else:
+                    cc_receiver = smtp_cc_emails
 
             if data_inicio and data_fim or Origem == 'Automatico':
                 data_do_dia = datetime.now()
