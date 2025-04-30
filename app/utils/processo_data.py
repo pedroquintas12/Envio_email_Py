@@ -572,7 +572,7 @@ def fetchLog(localizador):
                         numero_processo,
                         email_envio,
                         numero_envio,
-                        created_at
+                        data_hora_envio
                     FROM envio_emails
                     WHERE localizador =%s
                 """
