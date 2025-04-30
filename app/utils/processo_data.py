@@ -141,6 +141,9 @@ def fetch_autores_reus_links(tipo, processes):
 
 def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,Log_erro,token):
     clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'],token)
+    if not clienteVSAP and not Office_id and not office_status:
+        clienteVSAP, Office_id, office_status = "[Cliente não cadastrado]", None, None
+
     num_processo = process['numero_processo']
     data_distribuicao = process['data_distribuicao'].strftime('%d/%m/%Y')
     tribunal = process['tribunal']
@@ -258,17 +261,17 @@ def status_processo(processo_id):
 
 # Insere no banco o email enviado
 def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
-                data_do_dia, localizador_email, email_receiver, numero, permanent_url, Origem, total_processos):
+                data_do_dia, localizador_email, email_receiver, numero, permanent_url, Origem, total_processos,status):
 
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
                     INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
-                                            data_envio, localizador, email_envio, numero_envio, link_s3, Origem, total,data_hora_envio)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s,%s)
+                                            data_envio, localizador, email_envio, numero_envio, link_s3, Origem, total,data_hora_envio,status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s,%s,%s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
-                    localizador_email, email_receiver, numero, permanent_url, Origem,total_processos,datetime.now()))
+                    localizador_email, email_receiver, numero, permanent_url, Origem,total_processos,datetime.now(),status))
                 
                 db_connection.commit()
 
@@ -339,18 +342,19 @@ def historio_env(token):
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
         query = """SELECT 
-                    cod_escritorio,
-                    localizador,
-                    origem,
-                    total,
-                    MAX(data_hora_envio) AS ultima_data_envio
-                FROM 
-                    apidistribuicao.envio_emails
-                GROUP BY 
-                    cod_escritorio, localizador, origem,total
-                ORDER BY
-                    ultima_data_envio DESC
-                LIMIT 10;
+                        e.cod_escritorio,
+                        e.localizador,
+                        e.origem,
+                        e.total,
+                        MAX(e.data_hora_envio) AS ultima_data_envio,
+                        e.status
+                    FROM 
+                        apidistribuicao.envio_emails e
+                    GROUP BY 
+                        e.cod_escritorio, e.localizador, e.origem, e.total, e.status
+                    ORDER BY
+                        ultima_data_envio DESC
+                    LIMIT 10;
                 """
         db_cursor.execute(query)
         dados = db_cursor.fetchall()
@@ -369,7 +373,13 @@ def historio_env(token):
                 index = futures[future]
                 try:
                     nome_do_cliente = future.result()
-                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não encontrado'
+                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não cadastrado'
+                except concurrent.futures.TimeoutError:
+                    logger.error(f"Timeout ao obter nome do cliente para o índice {index}.")
+                    indexed_data[index]['nome_cliente'] = 'Timeout ao obter cliente'
+                except concurrent.futures.CancelledError:
+                    logger.error(f"Operação cancelada ao obter nome do cliente para o índice {index}.")
+                    indexed_data[index]['nome_cliente'] = 'Operação cancelada'
                 except Exception as e:
                     logger.error(f"Erro ao obter nome do cliente: {e}")
                     indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
@@ -422,7 +432,7 @@ def pendentes_envio(token):
                 index = futures[future]
                 try:
                     nome_do_cliente = future.result()
-                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não encontrado'
+                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não cadastrado'
                 except Exception as e:
                     logger.error(f"Erro ao obter nome do cliente: {e}")
                     indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
@@ -448,11 +458,10 @@ def total_geral(token, start_date=None, end_date=None):
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
         query = f"""SELECT
-                        MAX(c.Cod_Escritorio) AS Codigo_VSAP,
+                        p.Cod_Escritorio AS Codigo_VSAP,
                         COUNT(p.ID_processo) AS totalDistribuicoes
                     FROM
                         apidistribuicao.processo AS p
-                        INNER JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio
                     WHERE
                         p.deleted = 0
                     """
@@ -466,7 +475,7 @@ def total_geral(token, start_date=None, end_date=None):
             query += f" AND DATE(p.data_insercao) BETWEEN '{start_date}' AND '{end_date}' "
         
         query += """ GROUP BY 
-                        Cliente_VSAP 
+                        Codigo_VSAP 
                     ORDER BY totalDistribuicoes DESC;"""
         
         db_cursor.execute(query)
@@ -488,7 +497,7 @@ def total_geral(token, start_date=None, end_date=None):
                 index = futures[future]
                 try:
                     nome_do_cliente = future.result()
-                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não encontrado'
+                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não cadastrado'
                 except Exception as e:
                     logger.error(f"Erro ao obter nome do cliente: {e}")
                     indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
@@ -508,16 +517,89 @@ def total_geral(token, start_date=None, end_date=None):
         logger.error(f"Erro ao puxar historico total {e}")
 
 
-def log_error(ID_processo,cod_escritorio,numero_processo,motivo):
+def log_error(ID_processo,cod_escritorio,numero_processo,motivo,localizador):
     try:
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
-        query = """insert into log_erro (ID_processo, cod_escritorio, numero_processo, motivo, created_date,modified_date)
-                    VALUES (%s,%s,%s,%s,%s,%s)"""
-        db_cursor.execute(query, (ID_processo,cod_escritorio,numero_processo,motivo, datetime.now(), datetime.now()))
+        query = """insert into log_erro (ID_processo, cod_escritorio, numero_processo, motivo, created_date,modified_date,localizador)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)"""
+        db_cursor.execute(query, (ID_processo,cod_escritorio,numero_processo,motivo, datetime.now(), datetime.now(),localizador))
         db_connection.commit()
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao Inserir log de erro {err}")
     except Exception as e:
         logger.error(f"Erro ao Inserir log de erro {e}")      
+
+def numeros_processos_pendentes(cod_escritorio):
+    try:
+        processos = []
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+        query = """SELECT
+                    p.numero_processo
+                FROM 
+                    apidistribuicao.processo p
+                WHERE 
+                    p.deleted = 0
+                    AND p.Cod_escritorio = %s
+                    AND p.status = 'P'
+                GROUP BY
+                    p.numero_processo
+                ORDER BY
+                    p.Cod_escritorio;"""
+        db_cursor.execute(query, (cod_escritorio,))
+        dados = db_cursor.fetchall()
+        for item in dados:
+            processos.append(item['numero_processo'])
+
+        return processos
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar pendentes {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar pendentes {e}")
+
+
+
+def fetchLog(localizador):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                query = """
+                    SELECT 
+                        ID_processo,
+                        numero_processo,
+                        email_envio,
+                        numero_envio,
+                        created_at
+                    FROM envio_emails
+                    WHERE localizador =%s
+                """
+                db_cursor.execute(query, (localizador,))
+                results = db_cursor.fetchall()
+
+                if not results:
+                    return {}
+
+                # Pegamos motivo e data do primeiro registro (são iguais para todos)
+                motivo = results[0]["email_envio"]
+                created_date = formatar_data(results[0]["data_hora_envio"]) if results[0]["data_hora_envio"] else None
+
+                processos = [
+                    {
+                        "ID_processo": row["ID_processo"],
+                        "numero_processo": row["numero_processo"]
+                    }
+                    for row in results
+                ]
+
+                return {
+                    "motivo": motivo,
+                    "hora_envio": created_date,
+                    "processos": processos
+                }
+
+    except Exception as err:
+        logger.error(f"Erro na consulta do banco log_erro: {err}")
+        return {}

@@ -9,8 +9,9 @@ from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
 from config import config
-from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients
+from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog
 from config.JWT_helper import save_token_in_cache,get_cached_token,list_all_cached_tokens
+from app.apiLig import fetch_cliente_api_dashboard,fetch_email_api,fetch_numero_api,fetch_cliente_api
 
 
 main_bp = Blueprint('main', __name__)
@@ -124,7 +125,7 @@ def search():
     if not token:
         return jsonify({"error": "Token inválido ou ausente."}), 403
     
-    numero_processo = request.args.get('process')  # Data de início (opcional)
+    numero_processo = request.args.get('process') 
 
     result = fetch_processes_and_clients(data_inicio=None, data_fim=None,codigo=None,numero_processo=numero_processo,status=None, origem="API", token=token)
 
@@ -364,16 +365,61 @@ def send_pending():
     }), 200
 
 
-
-@main_bp.route('/api/tokens', methods=['GET'])
+@main_bp.route('/api/details/<int:cod>', methods=['GET'])
 @token_required
-def get_all_cached_tokens():
-    """
-    Retorna todos os tokens armazenados no cache.
-    """
+def cliente_detail(cod):
+    try:
+        token = obter_token()
+        if not token:
+            return jsonify({"error": "Token inválido ou ausente."}), 403
+        
+        clienteVSAP, Office_id, office_status = fetch_cliente_api(cod,token)
+        
+        processos = numeros_processos_pendentes(cod)
+        
+        emails = fetch_email_api(Office_id,token)
 
-    tokens = list_all_cached_tokens()
-    if tokens is None:
-        return jsonify({"message": "Cache vazio.", "tokens": []}), 200
+        numeros = fetch_numero_api(Office_id,token)
 
-    return jsonify({"tokens": tokens}), 200
+        
+        return jsonify({
+            "processos": processos,
+            "emails": emails,
+            "numeros": numeros
+        }), 200
+    
+
+    except Exception as e:
+        logger.error(f"Erro ao buscar detalhes do cliente: {e}")
+        return jsonify({"error": "Erro ao buscar detalhes do cliente."}), 500
+    except requests.RequestException as err:
+        logger.error(f"Erro ao acessar a API de cliente: {err}")
+        return jsonify({"error": "Erro na API"}), 500
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expirado"}), 401
+
+
+
+
+@main_bp.route('/api/log/<string:localizador>', methods=['GET'])
+@token_required
+def log(localizador):
+    try:
+                
+        log = fetchLog(localizador)
+
+        return jsonify({
+            "log": log
+        }), 200
+        
+
+    except Exception as e:
+        logger.error(f"Erro ao buscar detalhes do cliente: {e}")
+        return jsonify({"error": "Erro ao buscar detalhes do cliente."}), 500
+    except requests.RequestException as err:
+        logger.error(f"Erro ao acessar a API de cliente: {err}")
+        return jsonify({"error": "Erro na API"}), 500
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expirado"}), 401
+
+

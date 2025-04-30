@@ -16,7 +16,7 @@ def fetch_cliente_api(cod_cliente,token):
             office_status = item.get("status")
 
             return office_description, office_id, office_status
-        return "cliente não encontrado"
+        return None, None, None
     except requests.RequestException as err:
         logger.error(f"Erro ao acessar a API de cliente: {err}")
         return "Erro na API"
@@ -79,7 +79,7 @@ def fetch_cliente_api_dashboard(cod_cliente, token):
             office_description = item.get("description")
 
             return office_description
-        return "cliente não encontrado"
+        return None
     except requests.RequestException as err:
         logger.error(f"Erro ao acessar a API de cliente: {err}")
         return "Erro na API"

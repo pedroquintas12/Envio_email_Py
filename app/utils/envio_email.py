@@ -57,6 +57,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             Office_id = processos[0]['office_id']
             cliente_number = fetch_numero_api(Office_id,token)
             emails = fetch_email_api(Office_id,token)
+            localizador = str(uuid.uuid4()) 
 
             env = config.ENV
 
@@ -66,31 +67,43 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             for processo in processos:
                 ID_processo = processo['ID_processo']
                 cliente_STATUS = processo['cliente_status']
-                numero_processo = processos[0]['numero_processo']
+                numero_processo = processo['numero_processo']
+                LocatorDB = processo['localizador']
 
-                # Se o cliente não tem email para ser enviado, marca todos os processos com erro
-                if not emails and   not email:
-                    logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
-                    cliente_erro(ID_processo)  # Marca este processo com erro
-                    log_error(ID_processo,cod_cliente,numero_processo,"Cliente sem email para enviar ou bloqueado")
-                    erro_no_cliente = True
-                    continue  # Continua para o próximo processo
+                if Origem == 'Automatico':
+                    # Se o cliente não tem email para ser enviado, marca todos os processos com erro
+                    if not emails and not email:
+                        logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
+                        cliente_erro(ID_processo)                        
+                        # Adiciona erro no histórico
+                        status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
+                                    data_do_dia.strftime('%Y-%m-%d'), localizador, 
+                                    'NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E")
+                        
+                        erro_no_cliente = True
+                        continue
 
-                # Verifica se o cliente tem código VSAP
-                if not cliente_STATUS:
-                    logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
-                    cliente_erro(ID_processo)  # Marca este processo com erro
-                    log_error(ID_processo,cod_cliente,numero_processo,"Cliente não cadastrado na API")
-                    erro_no_cliente = True                   
-                    continue  # Continua para o próximo processo
+                    # Verifica se o cliente tem código na API
+                    if not cliente_STATUS:
+                        logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
+                        cliente_erro(ID_processo)  # Marca este processo com erro
+                        status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
+                                    data_do_dia.strftime('%Y-%m-%d'), localizador, 
+                                    'NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API', "N/A", None,
+                                      Origem, len(processos),"E")
+                        erro_no_cliente = True                   
+                        continue  # Continua para o próximo processo
 
-                # Verifica se o Status do cliente está "Liberado (L)"
-                if cliente_STATUS[0] != 'L':
-                    logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
-                    cliente_erro(ID_processo)  # Marca este processo com erro
-                    log_error(ID_processo,cod_cliente,numero_processo,"Cliente não está ativo na API")
-                    erro_no_cliente = True
-                    continue  # Continua para o próximo processo
+                    # Verifica se o Status do cliente está "Liberado (L)"
+                    if cliente_STATUS[0] != 'L':
+                        logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
+                        cliente_erro(ID_processo)  # Marca este processo com erro
+                        status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
+                                    data_do_dia.strftime('%Y-%m-%d'), localizador, 
+                                    f'NÃO ENVIADO - STATUS DO CLIENTE({cliente_STATUS})', "N/A", None, 
+                                    Origem, len(processos),"E")
+                        erro_no_cliente = True
+                        continue  # Continua para o próximo processo
 
             if erro_no_cliente:
                 contador_Inativos += 1
@@ -105,12 +118,12 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 cc_receiver = smtp_cc_emails
             if env == 'test' :
                 email_receiver = smtp_envio_test
-                bcc_receivers = smtp_bcc_emails
-                cc_receiver = smtp_cc_emails
+                bcc_receivers = smtp_envio_test
+                cc_receiver = smtp_envio_test
             if Origem == 'API' :
                 email_receiver = email
                 bcc_receivers = None
-                cc_receiver = smtp_cc_emails
+                cc_receiver = smtp_envio_test
 
             if data_inicio and data_fim or Origem == 'Automatico':
                 data_do_dia = datetime.now()
@@ -172,11 +185,11 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         numero = ', '.join(cliente_number)                
                 else:
                     numero = "Cliente não tem número cadastrado na API"  
-                    
                 if Origem == "Automatico":
                     status_processo(processo_id)
+                if Origem == "API" or Origem == "Automatico":
                     status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                    data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos))
+                                    data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver, numero, permanent_url, Origem, len(processos),"S")
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
