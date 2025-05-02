@@ -573,6 +573,7 @@ def fetchLog(localizador):
                         email_envio,
                         menssagem,
                         numero_envio,
+                        link_s3,
                         data_hora_envio
                     FROM envio_emails
                     WHERE localizador =%s
@@ -587,6 +588,7 @@ def fetchLog(localizador):
                 emails = results[0]["email_envio"]
                 menssagem = results[0]["menssagem"]
                 numero_envio = results[0]["numero_envio"]
+                link_s3 = results[0]["link_s3"]
                 created_date = formatar_data(results[0]["data_hora_envio"]) if results[0]["data_hora_envio"] else None
 
                 processos = [
@@ -602,6 +604,7 @@ def fetchLog(localizador):
                     "email_envio": emails,
                     "numero_envio": numero_envio,
                     "hora_envio": created_date,
+                    "link_s3": link_s3,
                     "processos": processos
                 }
 
