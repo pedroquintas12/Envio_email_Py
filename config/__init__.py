@@ -8,7 +8,7 @@ if getattr(sys, 'frozen', False):
 else:
     base_dir = os.path.dirname(__file__)
 
-load_dotenv(os.path.join(base_dir, 'config.env'))
+load_dotenv(os.path.join(base_dir, '.env'))
 
 
 class config:
@@ -23,3 +23,9 @@ class config:
     TOKEN_APILIG = os.getenv("TOKEN_APILIG")
     USERNAME = os.getenv("username_api")
     PASSWORD = os.getenv("password_api")
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_NAME = os.getenv("DB_NAME")
+    

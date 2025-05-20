@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 import sys
 from config import config
 
-
-
 current_env = config.ENV
 
 # Configurando o log

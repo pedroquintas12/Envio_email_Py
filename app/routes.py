@@ -320,14 +320,15 @@ def send_pending():
         return response
 
     dados = validar_dados(data_inicial, data_final, codigo, status)
-
-    total_processos = len(dados)
+    
 
     if not dados:
         response = jsonify({"error": "Nenhum dado encontrado para o dia selecionado!"})
         response.status_code = 500
         return response
     
+    total_processos = len(dados)
+
     result_holder = {}
 
     # Processamento em segundo plano

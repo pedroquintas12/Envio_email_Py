@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  workspace:
+    build: .
+    container_name: Envio_Email
+    image: ligcontato-envio-email
+    ports:
+      - "8000:8000"  # porta externa 8000 → interna 5000 (ajuste se seu app rodar em 8080)
+    env_file: 
+      - .env
+    stdin_open: true
+    tty: true
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - TZ=America/Sao_Paulo
+
+  db:
+    image: mysql:8.0.41
+    container_name: mysql-db-Disitribuicao
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: Disitribuicao
+      MYSQL_USER: pedro
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3307:3306"
