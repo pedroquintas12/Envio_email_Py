@@ -6,9 +6,9 @@ services:
     container_name: Envio_Email
     image: ligcontato-envio-email
     ports:
-      - "8000:8000"  # porta externa 8000 → interna 5000 (ajuste se seu app rodar em 8080)
+      - "5001:5001"  # porta externa 8000 → interna 5000 (ajuste se seu app rodar em 8080)
     env_file: 
-      - .env
+      - ./config/.env
     stdin_open: true
     tty: true
     restart: always
@@ -23,7 +23,7 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: Disitribuicao
+      MYSQL_DATABASE: apidistribuicao
       MYSQL_USER: pedro
       MYSQL_PASSWORD: 123456
     ports:

@@ -405,15 +405,12 @@ def cliente_detail(cod):
 @main_bp.route('/api/log/<string:localizador>', methods=['GET'])
 @token_required
 def log(localizador):
-    try:
-                
+    try:        
         log = fetchLog(localizador)
-
         return jsonify({
             "log": log
         }), 200
         
-
     except Exception as e:
         logger.error(f"Erro ao buscar detalhes do cliente: {e}")
         return jsonify({"error": "Erro ao buscar detalhes do cliente."}), 500
@@ -423,4 +420,59 @@ def log(localizador):
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expirado"}), 401
 
+@main_bp.route('/forcarEnvio', methods=['POST'])
+@token_required
+def forcar_envio():
+    data = request.get_json()
+    data_inicial = data.get('data_inicial')
+    codigo = data.get('codigo')
+    status = data.get('Status')
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
 
+    data_final = data_inicial
+
+    dados = validar_dados(data_inicial, data_final, codigo, status)
+
+    if not dados:
+        response = jsonify({"error": "Nenhum dado encontrado para o dia selecionado!"})
+        response.status_code = 500
+        return response
+    
+    total_processos = len(dados)
+
+    result_holder = {}
+
+    # Processamento em segundo plano
+    thread = Thread(target=enviar_emails_background, args=(data_inicial, data_final, "Automatico", None,codigo, status, None, result_holder, token))
+    thread.start()
+    thread.join()
+    
+    # Acessa o resultado do processamento
+    result = result_holder.get("result")
+    
+    # Verifica se o resultado foi obtido e processa a resposta
+    if result:
+        status = result.get('status')
+        message = result.get('message')
+        code = result.get('code')
+    else:
+        # Caso o resultado não tenha sido obtido, trata com erro
+        return jsonify({
+            "error": "Erro ao processar o envio de e-mails.",
+            "codigo": code,
+            "message": "Não foi possível obter o resultado do envio."
+        }), 500
+    
+    if code != 200:
+        return jsonify({
+            "error": message,
+            "codigo": code,
+            "status": status
+        }), 500
+    
+    return jsonify({
+        "message": "Relatório enviado",
+        "resultado": result,
+        "total_processos": total_processos
+    }), 200
