@@ -8,7 +8,7 @@ import uuid
 from config.logger_config import logger
 from scripts.send_whatsapp import enviar_mensagem_whatsapp
 from scripts.uploud_To_S3 import upload_html_to_s3
-from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,status_processo,cliente_erro, log_error
+from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,status_processo,cliente_erro
 from app.apiLig import fetch_email_api,fetch_numero_api
 from config.JWT_helper import get_random_cached_token
 from config import config

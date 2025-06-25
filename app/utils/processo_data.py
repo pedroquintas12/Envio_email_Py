@@ -336,33 +336,48 @@ def formatar_data(data):
         return data.strftime("%d/%m/%Y %H:%M:%S")
     return None
 
-def historio_env(token):
+def historio_env(token, page=1, per_page=10):
     try:
         listnmes = []
+        offset = (page - 1) * per_page
+
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
-        query = """SELECT 
-                        e.cod_escritorio,
-                        e.localizador,
-                        e.origem,
-                        e.total,
-                        MAX(e.data_hora_envio) AS ultima_data_envio,
-                        e.status
-                    FROM 
-                        apidistribuicao.envio_emails e
-                    GROUP BY 
-                        e.cod_escritorio, e.localizador, e.origem, e.total, e.status
-                    ORDER BY
-                        ultima_data_envio DESC
-                    LIMIT 10;
-                """
+
+        # Consulta para contar o total de registros (sem paginação)
+        count_query = """
+            SELECT COUNT(*) as total
+            FROM (
+                SELECT 1
+                FROM apidistribuicao.envio_emails e
+                GROUP BY e.cod_escritorio, e.localizador, e.origem, e.total, e.status
+            ) AS subquery;
+        """
+        db_cursor.execute(count_query)
+        total_registros = db_cursor.fetchone()['total']
+
+        # Consulta principal com paginação
+        query = f"""
+            SELECT 
+                e.cod_escritorio,
+                e.localizador,
+                e.origem,
+                e.total,
+                MAX(e.data_hora_envio) AS ultima_data_envio,
+                e.status
+            FROM 
+                apidistribuicao.envio_emails e
+            GROUP BY 
+                e.cod_escritorio, e.localizador, e.origem, e.total, e.status
+            ORDER BY
+                ultima_data_envio DESC
+            LIMIT {per_page} OFFSET {offset};
+        """
         db_cursor.execute(query)
         dados = db_cursor.fetchall()
 
-        # Mapeando registros com índices
         indexed_data = {i: registro for i, registro in enumerate(dados)}
 
-        # Usando threading
         with ThreadPoolExecutor() as executor:
             futures = {
                 executor.submit(fetch_cliente_api_dashboard, registro['cod_escritorio'], token): index
@@ -383,17 +398,21 @@ def historio_env(token):
                 except Exception as e:
                     logger.error(f"Erro ao obter nome do cliente: {e}")
                     indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
+
         for registro in indexed_data.values():
             registro['ultima_data_envio'] = formatar_data(registro['ultima_data_envio'])
-        # Reconstruindo a lista na ordem original
+
         listnmes = [indexed_data[i] for i in sorted(indexed_data)]
 
-        return listnmes
+        return listnmes, total_registros
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar historico de envio {err}")
+        return [], 0
     except Exception as e:
         logger.error(f"Erro ao puxar historico de envio {e}")
+        return [], 0
+
 
 
 def pendentes_envio(token):

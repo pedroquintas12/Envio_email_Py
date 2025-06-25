@@ -145,9 +145,22 @@ def api_dados_pendentes():
 @token_required
 def api_dados_historico():
     auth_header = request.headers['Authorization']
-    token = auth_header.split(" ")[1]    
-    historico = historio_env(token)
-    return jsonify({'historico': historico})
+    token = auth_header.split(" ")[1]
+
+    # Parâmetros de paginação
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))
+
+    historico, total_registros = historio_env(token, page, per_page)
+
+    return jsonify({
+        'pagina_atual': page,
+        'por_pagina': per_page,
+        'total_registros': total_registros,
+        'total_paginas': (total_registros + per_page - 1) // per_page,
+        'historico': historico
+    })
+
 
 @main_bp.route('/api/dados/total')
 @token_required
