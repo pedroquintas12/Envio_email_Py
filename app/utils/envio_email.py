@@ -141,7 +141,18 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                
 
             # Envia o e-mail
-            send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receiver, subject)
+                        # Envia o e-mail
+            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject)
+
+            # Se a função retornou erro (status == error)
+            if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":
+                logger.warning(f"Erro ao enviar e-mail para {cliente}({cod_cliente}): {resposta_envio[0].get('message')}")
+                for processo in processos:
+                    status_envio(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], processo['localizador'],
+                                data_do_dia.strftime('%Y-%m-%d'), localizador, email_receiver,
+                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E")
+                    contador_Inativos += 1
+                continue  # Pula o restante e vai pro próximo cliente
 
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':

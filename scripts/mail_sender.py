@@ -32,3 +32,4 @@ def send_email(smtp_config, email_body, email_receiver, bcc_receivers,cc_receive
             server.send_message(msg)
     except Exception as err:
         logger.error(f"Erro ao enivar email: {err}")
+        return {"status": "error", "message": str(err)}, 500
