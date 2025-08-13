@@ -8,7 +8,7 @@ from app.apiLig import fetch_cliente_api
 
 def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_disponibilizacao=None, token=None):
     # defaultdict que cria outro defaultdict que cria lista
-    clientes_data = defaultdict(lambda: defaultdict(list))
+    clientes_data = {}
 
     try:
         conn = get_db_ligcontato_connection()
@@ -64,24 +64,27 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
                 )
             concurrent.futures.wait(futures)
 
-        # Converte para dict normal antes de retornar
-        return jsonify({uf: dict(diarios) for uf, diarios in clientes_data.items()})
-
     except Exception as e:
         logger.error(f"Erro ao processar envio de publicações: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+        cursor.close()
+    return clientes_data
 
 
 def process_result(process, clientes_data, token):
     try:
         clienteVSAP, Office_id, office_status = fetch_cliente_api(process['cod_escritorio'], token)
 
-        # Agrupa por UF → Diário
         uf = process['uf']
         diario = process['sigla_diario']
+        
+        # Adiciona os dados ao cliente
+        if clienteVSAP not in clientes_data:
+            clientes_data[clienteVSAP] = []
 
-        clientes_data[uf][diario].append({
-            'clienteVSAP': clienteVSAP,
+        clientes_data[clienteVSAP].append({
             'Office_id': Office_id,
             'office_status': office_status,
             'publications_id': process['publications_id'],

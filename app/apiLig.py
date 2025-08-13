@@ -21,7 +21,7 @@ def fetch_cliente_api(cod_cliente,token):
         logger.error(f"Erro ao acessar a API de cliente: {err}")
         return "Erro na API"
     
-def fetch_email_api(Id_cliente,token):
+def fetch_email_api(Id_cliente,token,origem=None):
     try:
         api_url = f"{config.UrlApiLig}/offices/emails?officesId={Id_cliente}"  
         headers = {"Authorization": f"Bearer {token}"}  # Inclui o token necessário
@@ -33,8 +33,10 @@ def fetch_email_api(Id_cliente,token):
         for item in cliente_data.get("data", []):
             if item.get("status") != "L":
                 continue
-            if item.get("receiveDistributions") != True:
-                continue
+            if origem == None:
+                if item.get("receiveDistributions") != True:
+                    continue
+            
             office_email = item.get("email")
             if  office_email:
                 emails.append(office_email)

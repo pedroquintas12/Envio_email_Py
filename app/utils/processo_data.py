@@ -236,7 +236,7 @@ def fetch_companies():
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
-                    SELECT ID_lig, url_Sirius, sirius_Token, aws_s3_access_key, aws_s3_secret_key, bucket_s3,
+                    SELECT id_companies,ID_lig, url_Sirius, sirius_Token, aws_s3_access_key, aws_s3_secret_key, bucket_s3,
                         smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name,
                         smtp_reply_to, smtp_cc_emails, smtp_bcc_emails, smtp_envio_test, url_thumbnail_whatsapp, url_thumbnail 
                     FROM companies
@@ -260,18 +260,18 @@ def status_processo(processo_id):
         logger.error(f"Erro ao atulaizar status do email para 'S': {err}")
 
 # Insere no banco o email enviado
-def status_envio(processo_id, numero_processo, cod_escritorio, localizador_processo,
-                data_do_dia, localizador_email, email_receiver,menssagem ,numero, permanent_url, Origem, total_processos,status):
+def status_envio(processo_id = int, numero_processo= str, cod_escritorio = int, localizador_processo= str,
+                data_do_dia= str, localizador_email= str, email_receiver= str,menssagem = str,numero = str, permanent_url = str, Origem = str, total_processos = int,status = str,email_resumo = bool,subject =str):
 
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
                     INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
-                                            data_envio, localizador, email_envio,menssagem ,numero_envio, link_s3, Origem, total,data_hora_envio,status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s,%s ,%s, %s,%s, %s,%s,%s)
+                                            data_envio, localizador,subject, email_envio,menssagem ,numero_envio, link_s3, Origem, total,data_hora_envio,status,email_resumo)
+                    VALUES (%s, %s, %s, %s, %s, %s,%s, %s,%s ,%s, %s,%s, %s,%s,%s,%s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
-                    localizador_email, email_receiver, menssagem,numero, permanent_url, Origem,total_processos,datetime.now(),status))
+                    localizador_email,subject ,email_receiver, menssagem,numero, permanent_url, Origem,total_processos,datetime.now(),status,email_resumo))
                 
                 db_connection.commit()
 
@@ -630,3 +630,21 @@ def fetchLog(localizador):
     except Exception as err:
         logger.error(f"Erro na consulta do banco log_erro: {err}")
         return {}
+
+def cadastrar_cliente(cod_escritorio):
+    db_connection = get_db_connection()
+    db_cursor = db_connection.cursor(dictionary=True)
+    try:
+        #verifica se tem cliente
+        db_cursor.execute("""SELECT * from clientes where Cod_escritorio = %s""",(cod_escritorio))
+        cliente = db_cursor.fetchone()
+        if cliente:
+            db_cursor.execute("""UPDATE clientes SET recebe_resumo = 0 where Cod_escritorio = %s""",(cod_escritorio))
+            db_connection.commit()
+        if not cliente:
+            db_cursor.execute("""INSERT INTO clientes(Cod_escritorio,Cliente_VSAP,status,recebe_resumo) VALUES (%s,"ALTERAR NOME","L",0)""",(cod_escritorio))
+            db_connection.commit()
+    except mysql.connector.Error as err:
+        logger.error(f"erro na consulta do banco clientes: {err}")
+    except Exception as e:
+        logger.error(f"erro na consulta do banco clientes: {e}")

@@ -2,7 +2,7 @@ from datetime import datetime
 from functools import wraps
 from threading import Thread
 import time
-
+from app.service.enviar_email_background_resumo import enviar_emails_background_resumo
 import jwt
 import requests
 from config.logger_config import logger
@@ -81,6 +81,7 @@ def enviar_emails_background(data_inicial=None, data_final=None, origem="API", e
         
         # Chamada da função de envio de e-mails
         result = enviar_emails(data_inicial, data_final, origem, email, codigo, status, numero_processo,token)
+
         status_result, code = result
         # Verifica se status_result é um dicionário de erro
         if isinstance(status_result, dict):
@@ -489,3 +490,59 @@ def forcar_envio():
         "resultado": result,
         "total_processos": total_processos
     }), 200
+
+@main_bp.route("/api/EnviarResumoProcesso", methods=['POST'])
+@token_required
+def envioResumoProcesso():
+    data = request.get_json()
+    codigo_escritorio = data.get('office_code')
+    data_envio = data.get('data')
+    email = data.get('email')
+    auth_header = request.headers.get('Authorization')
+    token = auth_header.split(" ")[1] if auth_header else None
+
+    if not data_envio or not email:
+        return jsonify({"error": "Parâmetros 'data' e 'email' são obrigatórios!"}), 400
+
+    # Caso queira usar o mesmo formato de datas do forcar_envio
+    data_inicial = data_envio
+    data_final = data_envio
+
+    result_holder = {}
+
+    # Processamento em segundo plano como no forcar_envio
+    thread = Thread(
+        target=enviar_emails_background_resumo,  # precisa criar ou adaptar função específica para resumo
+        args=(data_inicial,"API" ,email, codigo_escritorio,result_holder, token)
+    )
+    thread.start()
+    thread.join()
+
+    # Acessa resultado do processamento
+    result = result_holder.get("result")
+
+    if not result:
+        return jsonify({
+            "error": "Erro ao processar o envio do resumo.",
+            "message": "Não foi possível obter o resultado do envio."
+        }), 500
+
+    status = result.get('status')
+    message = result.get('message')
+    code = result.get('code', 500)
+
+    if code != 200:
+        return jsonify({
+            "error": message,
+            "status": status,
+            "codigo": code
+        }), code
+
+    return jsonify({
+        "message": "Resumo enviado com sucesso.",
+        "resultado": result
+        }), 200
+
+
+
+

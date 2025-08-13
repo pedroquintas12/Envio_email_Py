@@ -12,10 +12,7 @@ from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,st
 from app.apiLig import fetch_email_api,fetch_numero_api
 from config.JWT_helper import get_random_cached_token
 from config import config
-
-
 import locale
-from dateutil.relativedelta import relativedelta
 
 def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,numero_processo=None, token = None):
     try:
@@ -40,7 +37,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         config_smtp = fetch_companies()
 
         if config_smtp:
-                ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
+                id_companies,ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
         else:
                 logger.warning("configuração SMTP não encontrada.")
                 exit()
@@ -78,7 +75,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         # Adiciona erro no histórico
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
-                                    'N/A','NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E")
+                                    'N/A','NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E",False)
                         
                         erro_no_cliente = True
                         continue
@@ -90,7 +87,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
                                     'N/A','NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API',"N/A", None,
-                                      Origem, len(processos),"E")
+                                      Origem, len(processos),"E",False)
                         erro_no_cliente = True                   
                         continue  # Continua para o próximo processo
 
@@ -101,7 +98,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
                                     'N/A',f'NÃO ENVIADO - STATUS DO CLIENTE({cliente_STATUS})' ,"N/A", None, 
-                                    Origem, len(processos),"E")
+                                    Origem, len(processos),"E",False)
                         erro_no_cliente = True
                         continue  # Continua para o próximo processo
 
@@ -150,7 +147,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 for processo in processos:
                     status_envio(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], processo['localizador'],
                                 data_do_dia.strftime('%Y-%m-%d'), localizador, email_receiver,
-                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E")
+                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E",False)
                     contador_Inativos += 1
                 continue  # Pula o restante e vai pro próximo cliente
 
@@ -207,8 +204,20 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 if Origem == "Automatico":
                     status_processo(processo_id)
                 if Origem == "API" or Origem == "Automatico":
-                    status_envio(processo_id,processo['numero_processo'],processo['cod_escritorio'],processo['localizador'],
-                                    data_do_dia.strftime('%Y-%m-%d'),localizador,email_receiver,'SUCESSO',numero, permanent_url, Origem, len(processos),"S")
+                    status_envio(processo_id,
+                                 processo['numero_processo'],
+                                 processo['cod_escritorio'],
+                                 processo['localizador'],
+                                 data_do_dia.strftime('%Y-%m-%d'),
+                                 localizador,
+                                 email_receiver,
+                                 'SUCESSO',
+                                 numero, 
+                                 permanent_url, 
+                                 Origem, 
+                                 len(processos),
+                                 "S",
+                                 False)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
