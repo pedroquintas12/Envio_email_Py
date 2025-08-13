@@ -63,6 +63,7 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo,numero_processo, s
             links_dict = fetch_autores_reus_links("links", processes)
             email_enviado = fetch_autores_reus_links("localizador",processes)
             Log_erro = fetch_autores_reus_links("log_erro", processes)
+
         #utiliza o multithreds para otimizar o processamento de dados
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
@@ -141,6 +142,7 @@ def fetch_autores_reus_links(tipo, processes):
 
 def process_result(process, clientes_data, autor_dict, reu_dict, links_dict,email_enviado,Log_erro,token):
     clienteVSAP, Office_id, office_status = fetch_cliente_api(process['Cod_escritorio'],token)
+    
     if not clienteVSAP and not Office_id and not office_status:
         clienteVSAP, Office_id, office_status = "[Cliente não cadastrado]", None, None
 
@@ -261,19 +263,23 @@ def status_processo(processo_id):
 
 # Insere no banco o email enviado
 def status_envio(processo_id = int, numero_processo= str, cod_escritorio = int, localizador_processo= str,
-                data_do_dia= str, localizador_email= str, email_receiver= str,menssagem = str,numero = str, permanent_url = str, Origem = str, total_processos = int,status = str,email_resumo = bool,subject =str):
+                data_do_dia= str, localizador_email= str, email_receiver= str,menssagem = str,
+                numero = str, permanent_url = str, Origem = str, total_processos = int,status = str,subject =str):
 
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
                     INSERT INTO envio_emails (ID_processo, numero_processo, cod_escritorio, localizador_processo,
-                                            data_envio, localizador,subject, email_envio,menssagem ,numero_envio, link_s3, Origem, total,data_hora_envio,status,email_resumo)
-                    VALUES (%s, %s, %s, %s, %s, %s,%s, %s,%s ,%s, %s,%s, %s,%s,%s,%s)
+                                            data_envio, localizador,subject, email_envio,menssagem ,numero_envio, link_s3, Origem, total,data_hora_envio,status)
+                    VALUES (%s, %s, %s, %s, %s, %s,%s, %s,%s ,%s, %s,%s, %s,%s,%s)
                 """, (processo_id, numero_processo, cod_escritorio, localizador_processo, data_do_dia, 
-                    localizador_email,subject ,email_receiver, menssagem,numero, permanent_url, Origem,total_processos,datetime.now(),status,email_resumo))
+                    localizador_email,subject ,email_receiver, menssagem,numero, permanent_url, Origem,total_processos,datetime.now(),status))
                 
                 db_connection.commit()
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao inserir o email no banco de dados: {err}")
 
     except Exception as err:
         logger.error(f"Erro ao inserir o email no banco de dados: {err}")
@@ -648,3 +654,36 @@ def cadastrar_cliente(cod_escritorio):
         logger.error(f"erro na consulta do banco clientes: {err}")
     except Exception as e:
         logger.error(f"erro na consulta do banco clientes: {e}")
+
+
+def status_envio_resumo_bulk(lista_registros):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                query = """
+                    INSERT INTO publicacao_envio_resumo (
+                        id_processo, numero_processo, cod_escritorio,
+                        data_envio, localizador_email, subject, email_envio, menssagem,
+                        link_s3, Origem, total, data_hora_envio, status
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+
+                # Adiciona datetime.now() na posição correta (antes do status)
+                lista_com_data = [
+                    (
+                        p_id, num_proc, cod_escr, data_envio, local_email,
+                        subj, email, msg, link, origem, total_proc,
+                        datetime.now(), status
+                    )
+                    for p_id, num_proc, cod_escr, data_envio, local_email,
+                        subj, email, msg, link, origem, total_proc, status
+                    in lista_registros
+                ]
+
+                db_cursor.executemany(query, lista_com_data)
+            db_connection.commit()
+
+    except Exception as err:
+        logger.error(f"Erro ao inserir emails no banco de dados: {err}")
+

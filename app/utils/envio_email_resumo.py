@@ -7,7 +7,7 @@ from scripts.mail_sender import send_email
 import uuid
 from app.utils.envio_email import thread_function
 from config.logger_config import logger
-from app.utils.processo_data import fetch_companies,status_envio
+from app.utils.processo_data import fetch_companies,status_envio_resumo_bulk
 from app.apiLig import fetch_email_api
 from config.JWT_helper import get_random_cached_token
 from config import config
@@ -15,7 +15,7 @@ import locale
 
 def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo= None,token = None):
     try:
-        
+        registros_bulk = []
         token = get_random_cached_token(Refresh=True)
         if Origem == "API":
             data_inicio_obj = datetime.strptime(data_inicial, "%Y-%m-%d")
@@ -70,7 +70,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                     if not emails and not email:
                         logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
                         # Adiciona erro no histórico
-                        status_envio(ID_processo, numero_processo, cod_cliente, None, 
+                        registros_bulk.append(ID_processo, numero_processo, cod_cliente, None, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador_email, 
                                     'N/A','NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E",True,subject)
                         
@@ -80,7 +80,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                     # Verifica se o cliente tem código na API
                     if not cliente_STATUS:
                         logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
-                        status_envio(ID_processo, numero_processo, cod_cliente, None, 
+                        registros_bulk.append(ID_processo, numero_processo, cod_cliente, None, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador_email, 
                                     'N/A','NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API',"N/A", None,
                                       Origem, len(processos),"E",True,subject)
@@ -90,7 +90,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                     # Verifica se o Status do cliente está "Liberado (L)"
                     if cliente_STATUS[0] != 'L':
                         logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
-                        status_envio(ID_processo, numero_processo, cod_cliente, None, 
+                        registros_bulk.append(ID_processo, numero_processo, cod_cliente, None, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador_email, 
                                     'N/A',f'NÃO ENVIADO - STATUS DO CLIENTE({cliente_STATUS})' ,"N/A", None, 
                                     Origem, len(processos),"E",True,subject)
@@ -133,7 +133,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
             if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":
                 logger.warning(f"Erro ao enviar e-mail para {cliente}({cod_cliente}): {resposta_envio[0].get('message')}")
                 for processo in processos:
-                    status_envio(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], None,
+                    registros_bulk.append(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], None,
                                 data_do_dia.strftime('%Y-%m-%d'), localizador_email, email_receiver,
                                 f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E", True, subject)
                     contador_Inativos += 1
@@ -152,30 +152,33 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
             thread.start()
             thread.join()
 
+            permanent_url = queue.get()
+
             logger.info(f"""E-mail de resumo enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")
 
-
             for processo in processos:
-                processo_id = processo['ID_processo']
+                processo_id = processo['publications_id']
 
-                numero = "APLICAÇÃO NÃO ELEGIVEL PARA ENVIO DE WHATSAPP"  
-                if Origem == "API" or Origem == "Automatico":
-                    status_envio(processo_id= processo_id,
-                                 numero_processo= processo['numero_processo'],
-                                 cod_escritorio= processo['cod_escritorio'],
-                                 localizador_email_processo=processo['localizador_email'],
-                                 data_do_dia= data_do_dia.strftime('%Y-%m-%d'),
-                                 localizador_email_email= localizador_email,
-                                 email_receiver= email_receiver,
-                                 menssagem='SUCESSO',
-                                 numero= numero,
-                                 permanent_url= None,
-                                 Origem= Origem,
-                                 total_processos= len(processos),
-                                 status= "S",
-                                 email_resumo= True,
-                                 subject= subject)
+                if Origem in ("API", "Automatico"):
+                    registros_bulk.append((
+                        processo_id,
+                        processo['numero_processo'],
+                        processo['cod_escritorio'],
+                        data_do_dia.strftime('%Y-%m-%d'),
+                        localizador_email,
+                        subject,
+                        email_receiver,
+                        'SUCESSO',
+                        permanent_url,
+                        Origem,
+                        len(processos),
+                        "S"
+                    ))
+
+            # Só executa 1 insert em lote no final
+            if registros_bulk:
+                status_envio_resumo_bulk(registros_bulk)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200

@@ -7,7 +7,6 @@ import concurrent.futures
 from app.apiLig import fetch_cliente_api
 
 def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_disponibilizacao=None, token=None):
-    # defaultdict que cria outro defaultdict que cria lista
     clientes_data = {}
 
     try:
@@ -16,7 +15,7 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
 
         query = """
         SELECT
-            p.publications_id ,
+            p.publications_id,
             p.num_processo AS numero_processo,
             p.data_disponibilizacao AS data_distribuicao,
             p.deleted,
@@ -55,46 +54,46 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
             )
             return jsonify({"error": "Nenhum registro encontrado"}), 404
 
-        # Processa em paralelo
+        # Agrupa por cod_escritorio
+        processos_por_escritorio = defaultdict(list)
+        for proc in registros:
+            processos_por_escritorio[proc['cod_escritorio']].append(proc)
+
+        # Processa escritórios em paralelo
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
-            for process in registros:
+            for cod, processos in processos_por_escritorio.items():
                 futures.append(
-                    executor.submit(process_result, process, clientes_data, token)
+                    executor.submit(process_result, cod, processos, clientes_data, token)
                 )
             concurrent.futures.wait(futures)
 
     except Exception as e:
         logger.error(f"Erro ao processar envio de publicações: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-        cursor.close()
+
     return clientes_data
 
 
-def process_result(process, clientes_data, token):
+def process_result(cod_escritorio, processos, clientes_data, token):
+    """Processa todos os processos de um único escritório"""
     try:
-        clienteVSAP, Office_id, office_status = fetch_cliente_api(process['cod_escritorio'], token)
+        clienteVSAP, Office_id, office_status = fetch_cliente_api(cod_escritorio, token)
 
-        uf = process['uf']
-        diario = process['sigla_diario']
-        
-        # Adiciona os dados ao cliente
         if clienteVSAP not in clientes_data:
             clientes_data[clienteVSAP] = []
 
-        clientes_data[clienteVSAP].append({
-            'Office_id': Office_id,
-            'office_status': office_status,
-            'publications_id': process['publications_id'],
-            'cod_escritorio': process['cod_escritorio'],
-            'numero_processo': process['numero_processo'],
-            'data_distribuicao': process['data_distribuicao'],
-            'sigla_diario': diario,
-            'uf': uf,
-        })
+        for proc in processos:
+            clientes_data[clienteVSAP].append({
+                'Office_id': Office_id,
+                'office_status': office_status,
+                'publications_id': proc['publications_id'],
+                'cod_escritorio': proc['cod_escritorio'],
+                'numero_processo': proc['numero_processo'],
+                'data_distribuicao': proc['data_distribuicao'],
+                'sigla_diario': proc['sigla_diario'],
+                'uf': proc['uf'],
+            })
 
     except Exception as e:
-        logger.error(f"Erro ao processar resultado do processo {process.get('numero_processo')}: {e}", exc_info=True)
-
+        logger.error(f"Erro ao processar escritório {cod_escritorio}: {e}", exc_info=True)

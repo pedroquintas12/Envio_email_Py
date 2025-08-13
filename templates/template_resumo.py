@@ -1,26 +1,35 @@
+from collections import defaultdict
+
+
 def generate_email_body(cliente, clientes_data, logo, localizador, data_do_dia):
     email_body = ""
     total_processos = len(clientes_data)
 
-    for uf, diarios in clientes_data.items():
+    # Agrupar antes de montar o HTML
+    agrupado = defaultdict(lambda: defaultdict(list))
+    for proc in clientes_data:
+        uf = proc['uf']
+        diario = proc['sigla_diario']
+        agrupado[uf][diario].append(proc)
+
+    for uf, diarios in agrupado.items():
         email_body += f"""
         <div class="estado">
             <h2>Estado: {uf}</h2>
         """
-        
         for diario, processos in diarios.items():
             email_body += f"""
             <div class="diario">
                 <h3>Diário: {diario}</h3>
             """
-            for idx, processo in enumerate(processos, start=1):
+            for processo in processos:
                 email_body += f"""
                 <div class="processo">
                     <p><strong>Número do Processo:</strong> {processo['numero_processo']}</p>
                 </div>
                 """
-            email_body += "</div>"  # fecha diario
-        email_body += "</div>"  # fecha estado
+            email_body += "</div>"
+        email_body += "</div>"
 
     # HTML final
     email_body = f"""

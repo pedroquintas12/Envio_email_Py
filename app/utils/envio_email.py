@@ -56,6 +56,12 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             emails = fetch_email_api(Office_id,token)
             localizador = str(uuid.uuid4()) 
 
+            if data_inicio and data_fim or Origem == 'Automatico':
+                data_do_dia = datetime.now()
+                subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
+            if Origem == 'API':
+                subject = f"LIGCONTATO - RELATÓRIO DISTRIBUIÇÕES DATAS: {data_inicio_br} - {data_fim_br} - {cliente}"
+
             env = config.ENV
 
             erro_no_cliente = False  # Flag para indicar erro no cliente
@@ -130,11 +136,6 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 else:
                     cc_receiver = smtp_cc_emails
 
-            if data_inicio and data_fim or Origem == 'Automatico':
-                data_do_dia = datetime.now()
-                subject = f"LIGCONTATO - DISTRIBUIÇÕES {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
-            if Origem == 'API':
-                subject = f"LIGCONTATO - RELATÓRIO DISTRIBUIÇÕES DATAS: {data_inicio_br} - {data_fim_br} - {cliente}"
                
 
             # Envia o e-mail
@@ -217,7 +218,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                                  Origem, 
                                  len(processos),
                                  "S",
-                                 False)
+                                 subject)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
