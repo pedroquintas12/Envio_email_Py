@@ -28,4 +28,8 @@ class config:
     DB_USER = os.getenv("DB_USER")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_NAME = os.getenv("DB_NAME")
-    
+    DB_LIGCONTATO_HOST = os.getenv("DB_LIGCONTATO_HOST")
+    DB_LIGCONTATO_PORT = int(os.getenv("DB_LIGCONTATO_PORT", 3306))
+    DB_LIGCONTATO_USER = os.getenv("DB_LIGCONTATO_USER")
+    DB_LIGCONTATO_PASS = os.getenv("DB_LIGCONTATO_PASS")
+    DB_LIGCONTATO_NAME = os.getenv("DB_LIGCONTATO_NAME")
