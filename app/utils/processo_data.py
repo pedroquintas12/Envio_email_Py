@@ -1,11 +1,12 @@
 from datetime import datetime
+
 from config.logger_config import logger
 from config.db_conexão import get_db_connection
 from app.apiLig import fetch_cliente_api_dashboard, fetch_cliente_api
-from concurrent import futures
 import concurrent
 import mysql.connector
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from config.exeptions import ErroInterno,BancoError,DadosInvalidosError
 
 # Captura todos os dados do processo
 def fetch_processes_and_clients(data_inicio, data_fim, codigo,numero_processo, status, origem,token):
@@ -75,8 +76,9 @@ def fetch_processes_and_clients(data_inicio, data_fim, codigo,numero_processo, s
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao executar a consulta: {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
-        logger.error(f"Erro inesperado: {e}")
+        raise ErroInterno(f"Erro inesperado: {err}")
     finally:
         if db_cursor:
             db_cursor.close()
@@ -137,6 +139,8 @@ def fetch_autores_reus_links(tipo, processes):
                     data_dict[process_id].append(row)
     except Exception as err:
         logger.error(f"Erro ao carregar {tipo}: {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")
+
     
     return data_dict
 
@@ -230,8 +234,8 @@ def fetch_email_locator(localizador):
 
     except Exception as err:
         logger.error(f"Erro na consulta do banco envio_email: {err}")
-        return []
-
+        raise ErroInterno(f"Erro inesperado: {err}")
+    
 # Puxa todos os dados necessários para envio de email e WhatsApp (SMTP/URL API)
 def fetch_companies():
     try:
@@ -249,7 +253,7 @@ def fetch_companies():
 
     except Exception as err:
         logger.error(f"Erro na consulta do banco companies: {err}")
-        exit()
+        raise ErroInterno(f"Erro inesperado: {err}")
 # Atualiza o status do processo enviado
 def status_processo(processo_id):
     try:
@@ -260,6 +264,7 @@ def status_processo(processo_id):
                 db_connection.commit()
     except Exception as err:
         logger.error(f"Erro ao atulaizar status do email para 'S': {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")
 
 # Insere no banco o email enviado
 def status_envio(processo_id = int, numero_processo= str, cod_escritorio = int, localizador_processo= str,
@@ -280,9 +285,11 @@ def status_envio(processo_id = int, numero_processo= str, cod_escritorio = int, 
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao inserir o email no banco de dados: {err}")
+        raise BancoError(f"Falha no banco: {err}")
 
     except Exception as err:
         logger.error(f"Erro ao inserir o email no banco de dados: {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")
 
 
 def cliente_erro(ID_processo):
@@ -297,6 +304,7 @@ def cliente_erro(ID_processo):
     
     except Exception as err:
         logger.error(f"erro ao atualizar Status de erro: {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")
 
 def validar_dados(data_inicio, data_fim, codigo,status):
     try:
@@ -333,8 +341,10 @@ def validar_dados(data_inicio, data_fim, codigo,status):
         return processes
     except mysql.connector.Error as err:
         logger.error(f"erro ao validar dados {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"erro ao validar dados {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
 
 
 def formatar_data(data):
@@ -414,11 +424,10 @@ def historio_env(token, page=1, per_page=10):
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar historico de envio {err}")
-        return [], 0
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"Erro ao puxar historico de envio {e}")
-        return [], 0
-
+        raise ErroInterno(f"Erro inesperado: {e}")
 
 
 def pendentes_envio(token):
@@ -469,8 +478,10 @@ def pendentes_envio(token):
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar pendentes {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"Erro ao puxar pendentes {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
 
 
 def total_geral(token, start_date=None, end_date=None):
@@ -538,8 +549,11 @@ def total_geral(token, start_date=None, end_date=None):
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar historico total {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"Erro ao puxar historico total {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
+        
 
 
 def log_error(ID_processo,cod_escritorio,numero_processo,motivo,localizador):
@@ -553,8 +567,10 @@ def log_error(ID_processo,cod_escritorio,numero_processo,motivo,localizador):
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao Inserir log de erro {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
-        logger.error(f"Erro ao Inserir log de erro {e}")      
+        logger.error(f"Erro ao Inserir log de erro {e}")  
+        raise ErroInterno(f"Erro inesperado: {e}")    
 
 def numeros_processos_pendentes(cod_escritorio):
     try:
@@ -582,8 +598,10 @@ def numeros_processos_pendentes(cod_escritorio):
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar pendentes {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"Erro ao puxar pendentes {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
 
 
 
@@ -635,7 +653,7 @@ def fetchLog(localizador):
 
     except Exception as err:
         logger.error(f"Erro na consulta do banco log_erro: {err}")
-        return {}
+        raise ErroInterno(f"Erro inesperado: {err}")
 
 def cadastrar_cliente(cod_escritorio):
     db_connection = get_db_connection()
@@ -652,8 +670,10 @@ def cadastrar_cliente(cod_escritorio):
             db_connection.commit()
     except mysql.connector.Error as err:
         logger.error(f"erro na consulta do banco clientes: {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"erro na consulta do banco clientes: {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
 
 
 def status_envio_resumo_bulk(lista_registros):
@@ -686,4 +706,6 @@ def status_envio_resumo_bulk(lista_registros):
 
     except Exception as err:
         logger.error(f"Erro ao inserir emails no banco de dados: {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")
+
 

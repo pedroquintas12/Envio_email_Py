@@ -1,7 +1,7 @@
 import requests
 from config.logger_config import logger
 from config import config
-
+from config.exeptions import ApiError
 def fetch_cliente_api(cod_cliente,token):
     try:
         api_url = f"{config.UrlApiLig}/offices?search={cod_cliente}"  
@@ -19,7 +19,7 @@ def fetch_cliente_api(cod_cliente,token):
         return None, None, None
     except requests.RequestException as err:
         logger.error(f"Erro ao acessar a API de cliente: {err}")
-        return "Erro na API"
+        raise ApiError(f"Falha na comunicação com API: {err}")
     
 def fetch_email_api(Id_cliente,token,origem=None):
     try:
@@ -43,7 +43,7 @@ def fetch_email_api(Id_cliente,token,origem=None):
         return ", ".join(emails)
     except requests.RequestException as err:
         logger.error(f"Erro ao acessar a API de email: {err}")
-        return "Erro na API"
+        raise ApiError(f"Falha na comunicação com API: {err}")
 
 def fetch_numero_api(Id_cliente,token):
     try:
@@ -65,7 +65,7 @@ def fetch_numero_api(Id_cliente,token):
     
     except requests.RequestException as err:
         logger.error(f"Erro ao acessar a API de numero: {err}")
-        return "Erro na API"
+        raise ApiError(f"Falha na comunicação com API: {err}")
 
 
 
@@ -84,4 +84,4 @@ def fetch_cliente_api_dashboard(cod_cliente, token):
         return None
     except requests.RequestException as err:
         logger.error(f"Erro ao acessar a API de cliente: {err}")
-        return "Erro na API"
+        raise ApiError(f"Falha na comunicação com API: {err}")

@@ -3,6 +3,7 @@ from datetime import datetime
 import threading
 from app.service.envio_historio_email_service import processar_envio_publicacoes
 from templates.template_resumo import generate_email_body
+from templates.generate_execel import gerar_excel_base64
 from scripts.mail_sender import send_email
 import uuid
 from app.utils.envio_email import thread_function
@@ -12,6 +13,7 @@ from app.apiLig import fetch_email_api
 from config.JWT_helper import get_random_cached_token
 from config import config
 import locale
+
 
 def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo= None,token = None):
     try:
@@ -104,6 +106,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
             localizador_email = str(uuid.uuid4()) 
 
             email_body = generate_email_body(cliente, processos, logo, localizador_email, data_do_dia)
+            attachment = gerar_excel_base64(processos)
             if env == 'production' or Origem == 'Automatico':
                 email_receiver = emails
                 bcc_receivers = smtp_bcc_emails
@@ -127,7 +130,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
 
 
             # Envia o e-mail
-            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject)
+            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject,attachment,cliente,data_do_dia.strftime('%Y-%m-%d'))
 
             # Se a função retornou erro (status == error)
             if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":

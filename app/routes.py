@@ -8,6 +8,7 @@ import requests
 from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
+from config.exeptions import AppError
 from config import config
 from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog
 from config.JWT_helper import save_token_in_cache,get_cached_token,list_all_cached_tokens
@@ -21,6 +22,11 @@ if config.ENV == 'test':
 
 if config.ENV == 'production':
     UrlApiProd = config.UrlApiProd
+
+
+@main_bp.errorhandler(AppError)
+def handle_app_error(e):
+    return jsonify(e.to_dict()), 500
 
 def obter_token():
     """
@@ -506,7 +512,6 @@ def envioResumoProcesso():
 
     # Caso queira usar o mesmo formato de datas do forcar_envio
     data_inicial = data_envio
-    data_final = data_envio
 
     result_holder = {}
 
