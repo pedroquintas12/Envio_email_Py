@@ -684,9 +684,9 @@ def status_envio_resumo_bulk(lista_registros):
                     INSERT INTO publicacao_envio_resumo (
                         id_processo, numero_processo, cod_escritorio,
                         data_envio, localizador_email, subject, email_envio, menssagem,
-                        link_s3, Origem, total, data_hora_envio, status
+                        link_s3, Origem, total, data_hora_envio, status, arquivo_base64
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s)
                 """
 
                 # Adiciona datetime.now() na posição correta (antes do status)
@@ -694,10 +694,10 @@ def status_envio_resumo_bulk(lista_registros):
                     (
                         p_id, num_proc, cod_escr, data_envio, local_email,
                         subj, email, msg, link, origem, total_proc,
-                        datetime.now(), status
+                        datetime.now(), status,arquivo_base64
                     )
                     for p_id, num_proc, cod_escr, data_envio, local_email,
-                        subj, email, msg, link, origem, total_proc, status
+                        subj, email, msg, link, origem, total_proc, status,arquivo_base64
                     in lista_registros
                 ]
 

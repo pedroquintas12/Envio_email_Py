@@ -32,7 +32,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         contador_Inativos = 0
 
 
-        total_escritorios += 1 
+        total_escritorios= len(clientes_data)
         #recupera dos dados do comapanies
         config_smtp = fetch_companies()
 
@@ -139,7 +139,6 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                
 
             # Envia o e-mail
-                        # Envia o e-mail
             resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject)
 
             # Se a função retornou erro (status == error)

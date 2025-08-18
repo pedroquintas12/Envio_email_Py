@@ -30,20 +30,28 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
         WHERE p.deleted = 0
         """
 
-        params = {}
+        params = []
+
         if companies_id:
-            query += " AND p.companies_id = %(companies_id)s"
-            params["companies_id"] = companies_id
+            query += " AND p.companies_id = %s"
+            params.append(companies_id)
+
         if cod_escritorio:
-            query += " AND p.cod_escritorio in (%(cod_escritorio)s)"
-            params["cod_escritorio"] = cod_escritorio
+            if isinstance(cod_escritorio, int):
+                cod_escritorio = [cod_escritorio]
+                
+            placeholders = ",".join(["%s"] * len(cod_escritorio))
+            query += f" AND p.cod_escritorio IN ({placeholders})"
+            params.extend(cod_escritorio)  # adiciona cada item da lista
+
         if data_disponibilizacao:
             if isinstance(data_disponibilizacao, datetime):
                 data_disponibilizacao = data_disponibilizacao.strftime("%Y-%m-%d")
-            query += " AND p.data_disponibilizacao = %(data_disponibilizacao)s"
-            params["data_disponibilizacao"] = data_disponibilizacao
+            query += " AND p.data_disponibilizacao = %s"
+            params.append(data_disponibilizacao)
 
         cursor.execute(query, params)
+
         registros = cursor.fetchall()
         cursor.close()
         conn.close()

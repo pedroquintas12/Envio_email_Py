@@ -1,3 +1,4 @@
+import base64
 from queue import Queue
 from datetime import datetime
 import threading
@@ -27,7 +28,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
         else:
             data_inicio_obj = data_do_dia_obj.strftime("%Y-%m-%d")
             clientes = puxarClientesResumo()
-            codigo =  ",".join(str(cliente['Cod_escritorio']) for cliente in clientes)
+            codigo = [cliente['Cod_escritorio'] for cliente in clientes]
 
         config_smtp = fetch_companies()
 
@@ -45,7 +46,6 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
 
         total_escritorios = len(clientes_data)  
         #recupera dos dados do comapanies
-
 
         # configuração do SMTP
         smtp_config = (smtp_host, smtp_port, smtp_user, smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,logo)
@@ -148,6 +148,12 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                     contador_Inativos += 1
                 continue  # Pula o restante e vai pro próximo cliente
 
+            # gera o excel em base 64
+            if isinstance(attachment, bytes):
+                attachment_base64 = base64.b64encode(attachment).decode("utf-8")
+            else:
+                attachment_base64 = attachment  # já é string Base64
+
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
                 object_name = f"Resumo-processo/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
@@ -182,7 +188,8 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                         permanent_url,
                         Origem,
                         len(processos),
-                        "S"
+                        "S",
+                        attachment_base64
                     ))
 
             # Só executa 1 insert em lote no final
