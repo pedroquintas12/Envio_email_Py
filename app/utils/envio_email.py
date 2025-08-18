@@ -7,7 +7,7 @@ from scripts.mail_sender import send_email
 import uuid
 from config.logger_config import logger
 from scripts.send_whatsapp import enviar_mensagem_whatsapp
-from scripts.uploud_To_S3 import upload_html_to_s3
+from scripts.uploud_To_S3 import thread_function
 from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,status_processo,cliente_erro
 from app.apiLig import fetch_email_api,fetch_numero_api
 from config.JWT_helper import get_random_cached_token
@@ -32,7 +32,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         contador_Inativos = 0
 
 
-        total_escritorios = len(clientes_data)  
+        total_escritorios += 1 
         #recupera dos dados do comapanies
         config_smtp = fetch_companies()
 
@@ -219,7 +219,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                                  len(processos),
                                  "S",
                                  subject)
-
+        pass
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
 
@@ -228,10 +228,3 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         return {"status": "error", "message": str(err)},500
        
 
-def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, queue):
-    try:
-        permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)
-        queue.put(permanent_url)  # Coloca o URL na fila para a função principal
-    except Exception as e:
-        logger.error(f"Erro ao enviar para S3: {e}")
-        queue.put(None)

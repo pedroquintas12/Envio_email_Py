@@ -1,7 +1,5 @@
-from datetime import datetime
 from functools import wraps
 from threading import Thread
-import time
 from app.service.enviar_email_background_resumo import enviar_emails_background_resumo
 import jwt
 import requests
@@ -10,9 +8,9 @@ from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
 from config.exeptions import AppError
 from config import config
-from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog
-from config.JWT_helper import save_token_in_cache,get_cached_token,list_all_cached_tokens
-from app.apiLig import fetch_cliente_api_dashboard,fetch_email_api,fetch_numero_api,fetch_cliente_api
+from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog,cadastrar_cliente
+from config.JWT_helper import save_token_in_cache,get_cached_token
+from app.apiLig import fetch_email_api,fetch_numero_api,fetch_cliente_api
 
 
 main_bp = Blueprint('main', __name__)
@@ -548,6 +546,14 @@ def envioResumoProcesso():
         "resultado": result
         }), 200
 
-
+@main_bp.route("/api/cadastro/cliente", methods = ['POST'])
+@token_required
+def cadastrarCliente():
+    data = request.get_json()
+    cod_cliente = data.get('cod_cliente')
+    cadastrar_cliente(cod_cliente)
+    return jsonify({
+        'message': f'Cliente {cod_cliente} cadastrado com sucesso'
+    }),200
 
 

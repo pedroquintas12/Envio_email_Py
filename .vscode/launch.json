@@ -8,7 +8,7 @@
             "name": "Depurador do Python: Arquivo Atual",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "program": "teste.py",
             "console": "integratedTerminal"
         }
     ]

@@ -660,13 +660,13 @@ def cadastrar_cliente(cod_escritorio):
     db_cursor = db_connection.cursor(dictionary=True)
     try:
         #verifica se tem cliente
-        db_cursor.execute("""SELECT * from clientes where Cod_escritorio = %s""",(cod_escritorio))
+        db_cursor.execute("""SELECT * from clientes where Cod_escritorio = %s""",(cod_escritorio,))
         cliente = db_cursor.fetchone()
         if cliente:
-            db_cursor.execute("""UPDATE clientes SET recebe_resumo = 0 where Cod_escritorio = %s""",(cod_escritorio))
+            db_cursor.execute("""UPDATE clientes SET recebe_resumo = true where Cod_escritorio = %s""",(cod_escritorio,))
             db_connection.commit()
         if not cliente:
-            db_cursor.execute("""INSERT INTO clientes(Cod_escritorio,Cliente_VSAP,status,recebe_resumo) VALUES (%s,"ALTERAR NOME","L",0)""",(cod_escritorio))
+            db_cursor.execute("""INSERT INTO clientes(Cod_escritorio,Cliente_VSAP,status,recebe_resumo) VALUES (%s,"ALTERAR NOME","L",true)""",(cod_escritorio,))
             db_connection.commit()
     except mysql.connector.Error as err:
         logger.error(f"erro na consulta do banco clientes: {err}")
@@ -703,9 +703,28 @@ def status_envio_resumo_bulk(lista_registros):
 
                 db_cursor.executemany(query, lista_com_data)
             db_connection.commit()
-
     except Exception as err:
         logger.error(f"Erro ao inserir emails no banco de dados: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
+    finally:
+        if db_cursor:
+            db_cursor.close()
+        if db_connection:
+            db_connection.close()
 
 
+def puxarClientesResumo():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""SELECT * FROM clientes WHERE recebe_resumo = true """)
+        clientes = cursor.fetchall()
+
+        return clientes
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar pendentes {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar pendentes {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")

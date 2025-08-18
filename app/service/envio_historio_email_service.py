@@ -35,7 +35,7 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
             query += " AND p.companies_id = %(companies_id)s"
             params["companies_id"] = companies_id
         if cod_escritorio:
-            query += " AND p.cod_escritorio = %(cod_escritorio)s"
+            query += " AND p.cod_escritorio in (%(cod_escritorio)s)"
             params["cod_escritorio"] = cod_escritorio
         if data_disponibilizacao:
             if isinstance(data_disponibilizacao, datetime):

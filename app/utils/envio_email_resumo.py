@@ -6,9 +6,9 @@ from templates.template_resumo import generate_email_body
 from templates.generate_execel import gerar_excel_base64
 from scripts.mail_sender import send_email
 import uuid
-from app.utils.envio_email import thread_function
+from scripts.uploud_To_S3 import thread_function
 from config.logger_config import logger
-from app.utils.processo_data import fetch_companies,status_envio_resumo_bulk
+from app.utils.processo_data import fetch_companies,status_envio_resumo_bulk, puxarClientesResumo
 from app.apiLig import fetch_email_api
 from config.JWT_helper import get_random_cached_token
 from config import config
@@ -17,12 +17,17 @@ import locale
 
 def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo= None,token = None):
     try:
+        data_do_dia_obj = datetime.now()
         registros_bulk = []
         token = get_random_cached_token(Refresh=True)
+
         if Origem == "API":
             data_inicio_obj = datetime.strptime(data_inicial, "%Y-%m-%d")
             data_inicio_br = data_inicio_obj.strftime("%d/%m/%Y")
-
+        else:
+            data_inicio_obj = data_do_dia_obj.strftime("%Y-%m-%d")
+            clientes = puxarClientesResumo()
+            codigo =  ",".join(str(cliente['Cod_escritorio']) for cliente in clientes)
 
         config_smtp = fetch_companies()
 
@@ -32,6 +37,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                 logger.warning("configuração SMTP não encontrada.")
                 exit()
 
+    
         # Busca os dados dos clientes e processos
         clientes_data = processar_envio_publicacoes(id_companies,codigo,data_inicio_obj,token)
 
@@ -85,7 +91,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                         registros_bulk.append(ID_processo, numero_processo, cod_cliente, None, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador_email, 
                                     'N/A','NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API',"N/A", None,
-                                      Origem, len(processos),"E",True,subject)
+                                    Origem, len(processos),"E",True,subject)
                         erro_no_cliente = True                   
                         continue  # Continua para o próximo processo
 
@@ -184,7 +190,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                 status_envio_resumo_bulk(registros_bulk)
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
-        return {"status": "success", "message": "Emails enviados com sucesso"}, 200
+        return {"status": "success", "message": f"Emails enviados com sucesso. Total de processos: {len(processos)} "}, 200
 
     except Exception as err:
         logger.error(f"Erro ao executar o envio: {err}")
