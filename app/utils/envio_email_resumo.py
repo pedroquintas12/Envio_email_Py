@@ -195,7 +195,8 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
             # Só executa 1 insert em lote no final
             if registros_bulk:
                 status_envio_resumo_bulk(registros_bulk)
-
+                
+        pass
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": f"Emails enviados com sucesso. Total de processos: {len(processos)} "}, 200
 

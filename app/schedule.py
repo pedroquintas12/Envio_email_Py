@@ -2,16 +2,15 @@ import schedule
 from app.utils.envio_email import enviar_emails
 from app.utils.envio_email_resumo import enviar_emails_resumo
 import time
-from config import config
 from config.JWT_helper import get_random_cached_token
 
 get_random_cached_token()
 
 _scheduler_started = False  # Variável para evitar múltiplas inicializações
-schedule.every().day.at("13:38").do(
+schedule.every().day.at("14:06").do(
     lambda: enviar_emails(data_inicio=None, data_fim=None, Origem="Automatico",status = "P"))
 
-schedule.every().day.at("13:39").do(
+schedule.every().day.at("14:54").do(
     lambda: enviar_emails_resumo(data_inicial=None, Origem="Automatico",email=None,token=None))
 
 
