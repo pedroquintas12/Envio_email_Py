@@ -18,7 +18,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
     try:
         
         token = get_random_cached_token(Refresh=True)
-
+        resumo = False
         data_do_dia = datetime.now()
         if Origem == "API":
             data_inicio_obj = datetime.strptime(data_inicio, "%Y-%m-%d")
@@ -37,7 +37,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
         config_smtp = fetch_companies()
 
         if config_smtp:
-                id_companies,ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
+                id_companies,ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,bucket_S3_resumo,region,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
         else:
                 logger.warning("configuração SMTP não encontrada.")
                 exit()
@@ -163,7 +163,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
             queue = Queue()
 
-            thread = threading.Thread(target=thread_function, args=(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key,queue))
+            thread = threading.Thread(target=thread_function, args=(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key,region,resumo,queue))
             thread.start()
             thread.join()
 

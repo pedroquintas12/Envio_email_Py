@@ -33,11 +33,11 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
         config_smtp = fetch_companies()
 
         if config_smtp:
-                id_companies,ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
+                id_companies,ID_lig,url_Sirius,sirius_Token,aws_s3_access_key,aws_s3_secret_key,bucket_s3,bucket_S3_resumo,region,smtp_host, smtp_port, smtp_user,smtp_password,smtp_from_email,smtp_from_name,smtp_reply_to,smtp_cc_emails,smtp_bcc_emails,smtp_envio_test,whatslogo,logo = config_smtp
         else:
                 logger.warning("configuração SMTP não encontrada.")
                 exit()
-
+        resumo = True
     
         # Busca os dados dos clientes e processos
         clientes_data = processar_envio_publicacoes(id_companies,codigo,data_inicio_obj,token)
@@ -156,18 +156,18 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
 
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
-                object_name = f"Resumo-processo/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
+                object_name = f"/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
 
             if env == 'test':
-                object_name = f"Resumo-processo/test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
+                object_name = f"/test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
 
             queue = Queue()
 
-            thread = threading.Thread(target=thread_function, args=(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key,queue))
+            thread = threading.Thread(target=thread_function, args=(email_body, bucket_S3_resumo, object_name, aws_s3_access_key, aws_s3_secret_key,region,resumo,queue))
             thread.start()
             thread.join()
 
-            permanent_url = queue.get()
+            permanent_url = queue.get() 
 
             logger.info(f"""E-mail de resumo enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")

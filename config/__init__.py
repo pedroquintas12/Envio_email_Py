@@ -23,11 +23,18 @@ class config:
     TOKEN_APILIG = os.getenv("TOKEN_APILIG")
     USERNAME = os.getenv("username_api")
     PASSWORD = os.getenv("password_api")
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
-    DB_USER = os.getenv("DB_USER")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
-    DB_NAME = os.getenv("DB_NAME")
+    if ENV == 'test':
+        DB_HOST = "localhost"
+        DB_PORT = os.getenv("DB_PORT")
+        DB_USER = os.getenv("DB_USER")
+        DB_PASSWORD = os.getenv("DB_PASSWORD")
+        DB_NAME = os.getenv("DB_NAME")
+    else:
+        DB_HOST = os.getenv("DB_HOST")
+        DB_PORT = os.getenv("DB_PORT")
+        DB_USER = os.getenv("DB_USER")
+        DB_PASSWORD = os.getenv("DB_PASSWORD")
+        DB_NAME = os.getenv("DB_NAME")
     DB_LIGCONTATO_HOST = os.getenv("DB_LIGCONTATO_HOST")
     DB_LIGCONTATO_PORT = int(os.getenv("DB_LIGCONTATO_PORT", 3306))
     DB_LIGCONTATO_USER = os.getenv("DB_LIGCONTATO_USER")

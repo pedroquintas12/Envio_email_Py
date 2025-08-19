@@ -3,7 +3,7 @@ import boto3
 import io
 from botocore.exceptions import NoCredentialsError, ClientError
 
-def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, aws_s3_secret_key):
+def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, aws_s3_secret_key,region,resumo):
     # Criação do cliente S3
     s3_client = boto3.client(
         's3',
@@ -19,8 +19,13 @@ def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, a
         s3_client.upload_fileobj(html_buffer, bucket_name, object_name, ExtraArgs={'ContentType': 'text/html', 'ACL': 'public-read'})
         logger.info(f"Arquivo {object_name} enviado para o S3 com sucesso.")
 
+        if resumo == True:
+            return f"https://{bucket_name}.s3.{region}.amazonaws.com/{object_name}"
+
         # Retornar a URL permanente do arquivo
         return f"https://{bucket_name}/{object_name}"  
+ 
+
     except FileNotFoundError:
         logger.error(f"O arquivo {object_name} não foi encontrado.")
     except NoCredentialsError:
@@ -32,9 +37,9 @@ def upload_html_to_s3(email_body, bucket_name, object_name, aws_s3_access_key, a
 
 
 
-def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, queue):
+def thread_function(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key, region, resumo,queue):
     try:
-        permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key)
+        permanent_url = upload_html_to_s3(email_body, bucket_s3, object_name, aws_s3_access_key, aws_s3_secret_key,region,resumo)
         queue.put(permanent_url)  # Coloca o URL na fila para a função principal
     except Exception as e:
         logger.error(f"Erro ao enviar para S3: {e}")

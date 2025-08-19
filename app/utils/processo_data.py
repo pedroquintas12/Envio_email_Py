@@ -241,8 +241,8 @@ def fetch_companies():
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
                 db_cursor.execute("""
-                    SELECT id_companies,ID_lig, url_Sirius, sirius_Token, aws_s3_access_key, aws_s3_secret_key, bucket_s3,
-                        smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name,
+                    SELECT id_companies,ID_lig, url_Sirius, sirius_Token, aws_s3_access_key, aws_s3_secret_key, bucket_s3,bucket_S3_resumo,
+                        region,smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name,
                         smtp_reply_to, smtp_cc_emails, smtp_bcc_emails, smtp_envio_test, url_thumbnail_whatsapp, url_thumbnail 
                     FROM companies
                 """)
