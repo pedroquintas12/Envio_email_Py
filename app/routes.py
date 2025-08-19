@@ -551,10 +551,20 @@ def envioResumoProcesso():
 def cadastrarCliente():
     data = request.get_json()
     cod_cliente = data.get('cod_cliente')
-    nome = cadastrar_cliente(cod_cliente)
-    return jsonify({
-        'message': f'Cliente {nome}({cod_cliente}) cadastrado com sucesso'
-    }),200
+    if not cod_cliente:
+        return({'error':'Obrigatorio codigo do cliente'}),200
+    
+    cliente = cadastrar_cliente(cod_cliente)
+    
+    if cliente["status"] == "novo":
+        return jsonify({
+            'message': f'Cliente {cliente["nome"]} ({cod_cliente}) cadastrado com sucesso'
+        }),200
+    else:
+        return jsonify({
+            'message': f'Cliente {cliente["nome"]} ({cod_cliente}) JÁ EXISTIA MAS FOI ATUALIZADO'
+        }),200
+
 
 
 @main_bp.route("/api/clientesResumo", methods=['GET'])
