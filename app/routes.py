@@ -557,3 +557,7 @@ def cadastrarCliente():
     }),200
 
 
+@main_bp.route("/api/clientesResumo", methods=['GET'])
+@token_required
+def clientesResumo():
+    
