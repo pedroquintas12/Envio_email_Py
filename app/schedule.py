@@ -7,10 +7,10 @@ from config.JWT_helper import get_random_cached_token
 get_random_cached_token()
 
 _scheduler_started = False  # Variável para evitar múltiplas inicializações
-schedule.every().day.at("14:06").do(
+schedule.every().day.at("16:0").do(
     lambda: enviar_emails(data_inicio=None, data_fim=None, Origem="Automatico",status = "P"))
 
-schedule.every().day.at("14:54").do(
+schedule.every().day.at("17:00").do(
     lambda: enviar_emails_resumo(data_inicial=None, Origem="Automatico",email=None,token=None))
 
 
