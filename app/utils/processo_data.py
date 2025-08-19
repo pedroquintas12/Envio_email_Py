@@ -1,13 +1,12 @@
 from datetime import datetime
-
 from config.logger_config import logger
 from config.db_conexão import get_db_connection
 from app.apiLig import fetch_cliente_api_dashboard, fetch_cliente_api
 import concurrent
 import mysql.connector
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from config.exeptions import ErroInterno,BancoError,DadosInvalidosError
-
+from config.exeptions import ErroInterno,BancoError
+from config.JWT_helper import get_random_cached_token
 # Captura todos os dados do processo
 def fetch_processes_and_clients(data_inicio, data_fim, codigo,numero_processo, status, origem,token):
     clientes_data = {}
@@ -658,16 +657,24 @@ def fetchLog(localizador):
 def cadastrar_cliente(cod_escritorio):
     db_connection = get_db_connection()
     db_cursor = db_connection.cursor(dictionary=True)
+    token = get_random_cached_token(Refresh=True)
     try:
         #verifica se tem cliente
         db_cursor.execute("""SELECT * from clientes where Cod_escritorio = %s""",(cod_escritorio,))
         cliente = db_cursor.fetchone()
+        fetch_cliente = fetch_cliente_api(cod_escritorio,token)
+        cliente_nome = fetch_cliente[0]
+
         if cliente:
             db_cursor.execute("""UPDATE clientes SET recebe_resumo = true where Cod_escritorio = %s""",(cod_escritorio,))
             db_connection.commit()
+            if cliente['Cliente_VSAP'] == "ALTERAR CLIENTE":
+                db_cursor.execute("""UPDATE clientes SET Cliente_VSAP = %s where Cod_escritorio = %s""",(cliente_nome,cod_escritorio))
+                db_connection.commit()
         if not cliente:
-            db_cursor.execute("""INSERT INTO clientes(Cod_escritorio,Cliente_VSAP,status,recebe_resumo) VALUES (%s,"ALTERAR NOME","L",true)""",(cod_escritorio,))
+            db_cursor.execute("""INSERT INTO clientes(Cod_escritorio,Cliente_VSAP,status,recebe_resumo) VALUES (%s,%s,"L",true)""",(cod_escritorio,cliente_nome))
             db_connection.commit()
+        return cliente_nome
     except mysql.connector.Error as err:
         logger.error(f"erro na consulta do banco clientes: {err}")
         raise BancoError(f"Falha no banco: {err}")

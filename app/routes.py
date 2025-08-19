@@ -8,7 +8,7 @@ from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
 from config.exeptions import AppError
 from config import config
-from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog,cadastrar_cliente
+from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo
 from config.JWT_helper import save_token_in_cache,get_cached_token
 from app.apiLig import fetch_email_api,fetch_numero_api,fetch_cliente_api
 
@@ -551,13 +551,17 @@ def envioResumoProcesso():
 def cadastrarCliente():
     data = request.get_json()
     cod_cliente = data.get('cod_cliente')
-    cadastrar_cliente(cod_cliente)
+    nome = cadastrar_cliente(cod_cliente)
     return jsonify({
-        'message': f'Cliente {cod_cliente} cadastrado com sucesso'
+        'message': f'Cliente {nome}({cod_cliente}) cadastrado com sucesso'
     }),200
 
 
 @main_bp.route("/api/clientesResumo", methods=['GET'])
 @token_required
 def clientesResumo():
-    
+    clientes = puxarClientesResumo()
+    if clientes:
+        return jsonify(clientes), 200
+    return jsonify({'error': 'nenhum cliente encontrato'}),404
+
