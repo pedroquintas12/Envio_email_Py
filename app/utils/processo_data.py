@@ -748,3 +748,63 @@ def puxarClientesResumo():
     except Exception as e:
         logger.error(f"Erro ao puxar pendentes {e}")
         raise ErroInterno(f"Erro inesperado: {e}")
+    
+
+
+def historio_env_resumo(token, page=1, per_page=10):
+    try:
+        listnmes = []
+        offset = (page - 1) * per_page
+
+        db_connection = get_db_connection()
+        db_cursor = db_connection.cursor(dictionary=True)
+
+        # Consulta para contar o total de registros (sem paginação)
+        count_query = """
+            SELECT COUNT(*) as total
+            FROM (
+                SELECT 1
+                FROM publicacao_envio_resumo e
+                GROUP BY e.cod_escritorio, e.localizador_email, e.Origem, e.total, e.status
+            ) AS subquery;
+        """
+        db_cursor.execute(count_query)
+        total_registros = db_cursor.fetchone()['total']
+
+        # Consulta principal com paginação
+        query = f"""
+            SELECT 
+                e.cod_escritorio,
+                e.localizador_email,
+                c.Cliente_VSAP,
+                e.Origem,
+                e.total,
+                MAX(e.data_hora_envio) AS ultima_data_envio,
+                e.status
+            FROM 
+                apidistribuicao.publicacao_envio_resumo e
+                join apidistribuicao.clientes as c on c.cod_escritorio = e.cod_escritorio
+            GROUP BY 
+                e.cod_escritorio, e.localizador_email, e.Origem, e.total, e.status,c.Cliente_VSAP
+            ORDER BY
+                ultima_data_envio DESC
+            LIMIT {per_page} OFFSET {offset};
+        """
+        db_cursor.execute(query)
+        dados = db_cursor.fetchall()
+
+        indexed_data = {i: registro for i, registro in enumerate(dados)}
+
+        for registro in indexed_data.values():
+            registro['ultima_data_envio'] = formatar_data(registro['ultima_data_envio'])
+
+        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
+
+        return listnmes, total_registros
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar historico de envio {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar historico de envio {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")

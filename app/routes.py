@@ -8,7 +8,7 @@ from app.utils.envio_email import enviar_emails
 from flask import Blueprint, jsonify, request
 from config.exeptions import AppError
 from config import config
-from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients, numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo
+from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo
 from config.JWT_helper import save_token_in_cache,get_cached_token
 from app.apiLig import fetch_email_api,fetch_numero_api,fetch_cliente_api
 
@@ -575,3 +575,22 @@ def clientesResumo():
         return jsonify(clientes), 200
     return jsonify({'error': 'nenhum cliente encontrato'}),404
 
+@main_bp.route('/api/dados/historico/resumo')
+@token_required
+def api_dados_historico_resumo():
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(" ")[1]
+
+    # Parâmetros de paginação
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))
+
+    historico, total_registros = historio_env_resumo(token, page, per_page)
+
+    return jsonify({
+        'pagina_atual': page,
+        'por_pagina': per_page,
+        'total_registros': total_registros,
+        'total_paginas': (total_registros + per_page - 1) // per_page,
+        'historico': historico
+    })

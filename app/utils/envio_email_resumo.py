@@ -60,9 +60,9 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
             emails = fetch_email_api(Office_id,token,"Resumo")
             localizador_email = str(uuid.uuid4()) 
             if data_inicial:
-                subject = f"LIGCONTATO - PROCESSOS ENVIADOS DO DIA {data_inicio_br} - {cliente}"
+                subject = f"LIGCONTATO - RELATÓRIO PROCESSOS DO DIA {data_inicio_br} - {cliente}"
             else:
-                subject = f"LIGCONTATO - RELATÓRIO DE PROCESSOS {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
+                subject = f"LIGCONTATO - RELATÓRIO PROCESSOS {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
 
             env = config.ENV
 
