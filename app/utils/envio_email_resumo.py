@@ -157,10 +157,10 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
 
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
-                object_name = f"/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
+                object_name = f"{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
 
             if env == 'test':
-                object_name = f"/test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
+                object_name = f"test/{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador_email}.html"
 
             queue = Queue()
 
