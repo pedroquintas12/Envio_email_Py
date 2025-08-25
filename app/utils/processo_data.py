@@ -751,7 +751,7 @@ def puxarClientesResumo():
     
 
 
-def historio_env_resumo(token, page=1, per_page=10):
+def historio_env_resumo(page=1, per_page=10):
     try:
         listnmes = []
         offset = (page - 1) * per_page
@@ -808,3 +808,69 @@ def historio_env_resumo(token, page=1, per_page=10):
     except Exception as e:
         logger.error(f"Erro ao puxar historico de envio {e}")
         raise ErroInterno(f"Erro inesperado: {e}")
+    
+def fetch_anexo_resumo(localizador):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                query = """
+                    SELECT 
+                        arquivo_base64
+                    FROM apidistribuicao.publicacao_envio_resumo
+                    WHERE localizador_email = %s
+                    LIMIT 1
+                """
+                db_cursor.execute(query, (localizador,))
+                result = db_cursor.fetchone()
+                
+                if result and result['arquivo_base64']:
+                    return result['arquivo_base64']
+                else:
+                    return None
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar fetch_anexo_resumo {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar fetch_anexo_resumo {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
+    
+def fetch_log_resumo(localizador):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                query = """
+                    SELECT 
+                        email_envio,
+                        menssagem,
+                        link_s3,
+                        localizador_email,
+                        data_hora_envio
+                    FROM publicacao_envio_resumo
+                    WHERE localizador_email =%s
+                """
+                db_cursor.execute(query, (localizador,))
+                results = db_cursor.fetchall()
+
+                if not results:
+                    return {}
+
+                # Pegamos menssagem, email_envio, numero_envio, link_s3 e data_hora_envio do primeiro registro (são iguais para todos)
+                emails = results[0]["email_envio"]
+                menssagem = results[0]["menssagem"]
+                link_s3 = results[0]["link_s3"]
+                localizador_email = results[0]["localizador_email"]
+                created_date = formatar_data(results[0]["data_hora_envio"]) if results[0]["data_hora_envio"] else None
+
+
+                return {
+                    "menssagem": menssagem,
+                    "email_envio": emails,
+                    "hora_envio": created_date,
+                    "link_s3": link_s3,
+                    "localizador_email": localizador_email,
+                }
+
+    except Exception as err:
+        logger.error(f"Erro na consulta do banco fetch_log_resumo: {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")

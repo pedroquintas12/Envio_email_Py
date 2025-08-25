@@ -3,7 +3,7 @@ from app.utils.envio_email_resumo import enviar_emails_resumo
 # Teste no modo automático
 enviar_emails_resumo(
     Origem="Automatico",
-    data_inicial=None,
+    data_inicial='2025-08-24',
     email=None,
     codigo=None,
     token=None

@@ -42,6 +42,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
         # Busca os dados dos clientes e processos
         clientes_data = processar_envio_publicacoes(id_companies,codigo,data_inicio_obj,token)
 
+        
         contador_Inativos = 0
 
         total_escritorios = len(clientes_data)  

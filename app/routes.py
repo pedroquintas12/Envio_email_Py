@@ -1,17 +1,18 @@
 from functools import wraps
+from io import BytesIO
 from threading import Thread
 from app.service.enviar_email_background_resumo import enviar_emails_background_resumo
 import jwt
 import requests
 from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from config.exeptions import AppError
 from config import config
-from app.utils.processo_data import total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo
+from app.utils.processo_data import fetch_log_resumo, total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo,fetch_anexo_resumo
 from config.JWT_helper import save_token_in_cache,get_cached_token
 from app.apiLig import fetch_email_api,fetch_numero_api,fetch_cliente_api
-
+from app.utils.salvar_base64 import salvar_arquivo_base64
 
 main_bp = Blueprint('main', __name__)
 
@@ -70,8 +71,10 @@ def token_required(f):
             # Decodificar e validar o token
             jwt.decode(token, config.SECRET_TOKEN, algorithms=["HS512"])
         except jwt.ExpiredSignatureError:
+            logger.error("Token expirado")
             return jsonify({"error": "Token expirado"}), 401
         except jwt.InvalidTokenError:
+            logger.error("Token inválido")
             return jsonify({"error": "Token inválido"}), 401
 
         # Token válido, continuar para a rota
@@ -575,6 +578,9 @@ def clientesResumo():
         return jsonify(clientes), 200
     return jsonify({'error': 'nenhum cliente encontrato'}),404
 
+
+
+
 @main_bp.route('/api/dados/historico/resumo')
 @token_required
 def api_dados_historico_resumo():
@@ -585,7 +591,7 @@ def api_dados_historico_resumo():
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 10))
 
-    historico, total_registros = historio_env_resumo(token, page, per_page)
+    historico, total_registros = historio_env_resumo(page, per_page)
 
     return jsonify({
         'pagina_atual': page,
@@ -593,4 +599,55 @@ def api_dados_historico_resumo():
         'total_registros': total_registros,
         'total_paginas': (total_registros + per_page - 1) // per_page,
         'historico': historico
-    })
+    }),200
+
+@main_bp.route('/api/dados/historico/resumo/attach/<string:localizador>', methods=['GET'])
+@token_required
+def download_anexo_resumo(localizador):
+    try:
+        anexo = fetch_anexo_resumo(localizador)
+
+        if not anexo:
+            logger.warning(f"Nenhum anexo retornado para localizador={localizador}")
+            return jsonify({"error": "Nenhum anexo encontrado", "localizador": localizador}), 404
+
+        # aqui segue a decodificação
+        import base64, re
+        anexo = re.sub(r"^data:.*;base64,", "", anexo.strip())
+        file_bytes = base64.b64decode(anexo)
+
+        # loga os primeiros bytes decodificados
+        logger.info(f"Bytes iniciais: {file_bytes[:20]}")
+
+        buffer = BytesIO(file_bytes)
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f"anexo_resumo_{localizador}.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        logger.error(f"Erro ao buscar anexo do resumo: {e}")
+        return jsonify({"error": "Erro ao buscar anexo do resumo."}), 500
+          
+    
+
+
+@main_bp.route('/api/log/resumo/<string:localizador>', methods=['GET'])
+@token_required
+def log_resumo(localizador):
+    try:        
+        log = fetch_log_resumo(localizador)
+        return jsonify({
+            "log": log
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar detalhes do cliente: {e}")
+        return jsonify({"error": "Erro ao buscar detalhes do cliente."}), 500
+    except requests.RequestException as err:
+        logger.error(f"Erro ao acessar a API de cliente: {err}")
+        return jsonify({"error": "Erro na API"}), 500
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expirado"}), 401

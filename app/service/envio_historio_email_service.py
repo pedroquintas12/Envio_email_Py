@@ -60,6 +60,7 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
             logger.info(
                 f"Nenhum registro encontrado para os critérios fornecidos: companies_id={companies_id}, cod_escritorio={cod_escritorio}, data_disponibilizacao={data_disponibilizacao}"
             )
+            return
 
         # Agrupa por cod_escritorio
         processos_por_escritorio = defaultdict(list)
