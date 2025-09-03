@@ -1,4 +1,5 @@
 from functools import wraps
+import gzip
 from io import BytesIO
 from threading import Thread
 from app.service.enviar_email_background_resumo import enviar_emails_background_resumo
@@ -612,12 +613,8 @@ def download_anexo_resumo(localizador):
             return jsonify({"error": "Nenhum anexo encontrado", "localizador": localizador}), 404
 
         # aqui segue a decodificação
-        import base64, re
-        anexo = re.sub(r"^data:.*;base64,", "", anexo.strip())
-        file_bytes = base64.b64decode(anexo)
+        file_bytes = gzip.decompress(anexo)
 
-        # loga os primeiros bytes decodificados
-        logger.info(f"Bytes iniciais: {file_bytes[:20]}")
 
         buffer = BytesIO(file_bytes)
         return send_file(

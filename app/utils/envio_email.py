@@ -8,11 +8,13 @@ import uuid
 from config.logger_config import logger
 from scripts.send_whatsapp import enviar_mensagem_whatsapp
 from scripts.uploud_To_S3 import thread_function
-from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,status_processo,cliente_erro
+from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,cliente_erro
 from app.apiLig import fetch_email_api,fetch_numero_api
 from config.JWT_helper import get_random_cached_token
 from config import config
 import locale
+from app.repository.envio_repository import EnvioRepository
+from app.service.persistence_policy import format_numbers_for_db
 
 def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,numero_processo=None, token = None):
     try:
@@ -178,17 +180,18 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 if not cliente_number:
                     logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API ou email enviado via API")
                 else:
-                    for numero in cliente_number:
-                        #envia a mensagem via whatsapp
-                        enviar_mensagem_whatsapp(ID_lig,
-                                                url_Sirius,
-                                                sirius_Token,
-                                                numero,
-                                                permanent_url,
-                                                f"Distribuição de novas ações - {cliente}",
-                                                f"Total: {len(processos)} Distribuições",
-                                                whatslogo
-                                                )
+                    if getattr(config, "WHATSAPP_ENABLED", True):
+                        for numero in cliente_number:
+                            #envia a mensagem via whatsapp
+                            enviar_mensagem_whatsapp(ID_lig,
+                                                    url_Sirius,
+                                                    sirius_Token,
+                                                    numero,
+                                                    permanent_url,
+                                                    f"Distribuição de novas ações - {cliente}",
+                                                    f"Total: {len(processos)} Distribuições",
+                                                    whatslogo
+                                                    )
 
             logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")
@@ -197,27 +200,22 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             for processo in processos:
                 processo_id = processo['ID_processo']
 
-                if cliente_number and isinstance(cliente_number, list):
-                        numero = ', '.join(cliente_number)                
-                else:
-                    numero = "Cliente não tem número cadastrado na API"  
-                if Origem == "Automatico":
-                    status_processo(processo_id)
-                if Origem == "API" or Origem == "Automatico":
-                    status_envio(processo_id,
-                                 processo['numero_processo'],
-                                 processo['cod_escritorio'],
-                                 processo['localizador'],
-                                 data_do_dia.strftime('%Y-%m-%d'),
-                                 localizador,
-                                 email_receiver,
-                                 'SUCESSO',
-                                 numero, 
-                                 permanent_url, 
-                                 Origem, 
-                                 len(processos),
-                                 "S",
-                                 subject)
+                numero_para_db = format_numbers_for_db(cliente_number if isinstance(cliente_number, list) else None)
+
+                EnvioRepository.marcar_processado_se_automatico(processo_id, Origem)
+
+                EnvioRepository.registrar_sucesso(
+                    processo,
+                    data_do_dia.strftime('%Y-%m-%d'),
+                    localizador,
+                    email_receiver,
+                    numero_para_db,
+                    permanent_url,
+                    Origem,
+                    len(processos),
+                    subject
+                )
+
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
 

@@ -7,11 +7,13 @@ from config.logger_config import logger
 
 def salvar_arquivo_base64(base64_string, localizador):
     try:
+        # descomprime os dados se estiverem comprimidos
+        try:
+            import gzip
+            file_bytes = gzip.decompress(base64_string)
+        except Exception as e:
+            logger.warning(f"Falha ao descomprimir os dados: {e}. Prosseguindo com os dados originais.")
 
-        base64_string = re.sub(r"^data:.*;base64,", "", base64_string.strip())
-
-        # Decodifica o base64 para bytes
-        file_bytes = base64.b64decode(base64_string)
 
         # Cria um arquivo em memória
         buffer = BytesIO(file_bytes)

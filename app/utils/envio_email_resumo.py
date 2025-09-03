@@ -1,4 +1,5 @@
 import base64
+import gzip
 from queue import Queue
 from datetime import datetime
 import threading
@@ -151,9 +152,10 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
 
             # gera o excel em base 64
             if isinstance(attachment, bytes):
-                attachment_base64 = base64.b64encode(attachment).decode("utf-8")
+                # Comprime os dados antes de codificar em Base64
+                attachment_BLOB = gzip.compress(attachment)
             else:
-                attachment_base64 = attachment  # já é string Base64
+                attachment_BLOB = attachment  # já é string Base64
 
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
@@ -190,7 +192,7 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
                         Origem,
                         len(processos),
                         "S",
-                        attachment_base64
+                        attachment_BLOB
                     ))
 
             # Só executa 1 insert em lote no final

@@ -1,4 +1,6 @@
 from datetime import datetime
+from sqlite3 import DatabaseError, OperationalError
+import time
 from config.logger_config import logger
 from config.db_conexão import get_db_connection
 from app.apiLig import fetch_cliente_api_dashboard, fetch_cliente_api
@@ -696,41 +698,80 @@ def cadastrar_cliente(cod_escritorio):
         raise ErroInterno(f"Erro inesperado: {e}")
 
 
+BATCH_SIZE = 100
+RETRIES = 3
+RETRY_SLEEP_BASE = 1.5  # segundos
+
 def status_envio_resumo_bulk(lista_registros):
+    """
+    lista_registros contém tuplas:
+    (p_id, num_proc, cod_escr, data_envio, local_email, subj, email, msg, link, origem, total_proc, status, arquivo_blob)
+    """
+    # monta aqui a lista com datetime.now() ANTES do status, como seu SQL pede
+    lista_com_data = [
+        (
+            p_id, num_proc, cod_escr, data_envio, local_email,
+            subj, email, msg, link, origem, total_proc,
+            datetime.now(), status, arquivo_blob
+        )
+        for (p_id, num_proc, cod_escr, data_envio, local_email,
+             subj, email, msg, link, origem, total_proc, status, arquivo_blob)
+        in lista_registros
+    ]
+
+    sql = ("""
+        INSERT INTO publicacao_envio_resumo (
+            id_processo, numero_processo, cod_escritorio,
+            data_envio, localizador_email, subject, email_envio, menssagem,
+            link_s3, Origem, total, data_hora_envio, status, arquivo_base64
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    """)
+
+    conn = None
+    cur = None
     try:
-        with get_db_connection() as db_connection:
-            with db_connection.cursor() as db_cursor:
-                query = """
-                    INSERT INTO publicacao_envio_resumo (
-                        id_processo, numero_processo, cod_escritorio,
-                        data_envio, localizador_email, subject, email_envio, menssagem,
-                        link_s3, Origem, total, data_hora_envio, status, arquivo_base64
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s)
-                """
+        conn = get_db_connection()
+        # cursor preparado = protocolo binário (melhor p/ BLOBs grandes)
+        cur = conn.cursor(prepared=True)
 
-                # Adiciona datetime.now() na posição correta (antes do status)
-                lista_com_data = [
-                    (
-                        p_id, num_proc, cod_escr, data_envio, local_email,
-                        subj, email, msg, link, origem, total_proc,
-                        datetime.now(), status,arquivo_base64
-                    )
-                    for p_id, num_proc, cod_escr, data_envio, local_email,
-                        subj, email, msg, link, origem, total_proc, status,arquivo_base64
-                    in lista_registros
-                ]
+        total = len(lista_com_data)
+        for start in range(0, total, BATCH_SIZE):
+            chunk = lista_com_data[start:start+BATCH_SIZE]
 
-                db_cursor.executemany(query, lista_com_data)
-            db_connection.commit()
+            # retries para quedas transitórias
+            for attempt in range(1, RETRIES+1):
+                try:
+                    cur.executemany(sql, chunk)
+                    conn.commit()
+                    break
+                except OperationalError as e:
+                    # 2006 = MySQL server has gone away, 2013 = Lost connection during query
+                    if getattr(e, "errno", None) in (2006, 2013) or e.args and e.args[0] in (2006, 2013):
+                        conn.rollback()
+                        # reconectar e reconfigurar sessão
+                        time.sleep(RETRY_SLEEP_BASE * attempt)
+                        if cur:
+                            cur.close()
+                        if conn:
+                            conn.close()
+                        conn = get_db_connection()
+                        cur = conn.cursor(prepared=True)
+                        continue
+                    else:
+                        raise
+                except DatabaseError:
+                    conn.rollback()
+                    raise
+
     except Exception as err:
         logger.error(f"Erro ao inserir emails no banco de dados: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
     finally:
-        if db_cursor:
-            db_cursor.close()
-        if db_connection:
-            db_connection.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def puxarClientesResumo():

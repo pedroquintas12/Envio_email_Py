@@ -1,6 +1,6 @@
 # Configuração do cache (suporta múltiplos tokens, com limite de 100 tokens)
 from datetime import datetime
-from datetime import datetime, timedelta
+from datetime import datetime, UTC
 import random
 from cachetools import LRUCache
 import jwt
