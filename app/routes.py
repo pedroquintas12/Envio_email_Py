@@ -452,12 +452,15 @@ def forcar_envio():
     auth_header = request.headers.get('Authorization')
     token = auth_header.split(" ")[1] if auth_header else None
 
-    data_final = data_inicial
+    if not data_inicial and not codigo :
+        data_inicial = None
+        data_final = None
+        codigo = None
 
     dados = validar_dados(data_inicial, data_final, codigo, status)
 
     if not dados:
-        response = jsonify({"error": "Nenhum dado encontrado para o dia selecionado!"})
+        response = jsonify({"error": "Nenhum dado encontrado!"})
         response.status_code = 500
         return response
     

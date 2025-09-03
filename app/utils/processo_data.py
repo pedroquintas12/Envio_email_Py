@@ -307,39 +307,52 @@ def cliente_erro(ID_processo):
         logger.error(f"erro ao atualizar Status de erro: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
 
-def validar_dados(data_inicio, data_fim, codigo,status):
+def validar_dados(data_inicio=None, data_fim=None, codigo=None, status=None):
     try:
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
-        # Consulta para validar se há processo para a data
-        query=""" 
-                    SELECT p.Cod_escritorio, p.numero_processo, 
-                        MAX(p.data_distribuicao) as data_distribuicao, 
-                        p.orgao_julgador, p.tipo_processo, p.status, 
-                        p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, p.tribunal, 
-                        p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
-                        p.tipo_processo 
-                    FROM apidistribuicao.processo AS p 
-                    WHERE DATE(p.data_insercao) between  %s and %s """
-        if status:
-            query += f"AND p.status ='{status}'"
-        if not status:
-            query += "AND p.status = 'S' "
-        if codigo:
-            query+= """AND p.Cod_escritorio = %s """
-            
-        query+= """ GROUP BY p.numero_processo, p.Cod_escritorio, p.orgao_julgador, p.tipo_processo, 
-                            p.uf, p.sigla_sistema, p.tribunal,ID_processo;
-                """
-        if not codigo:
-            db_cursor.execute(query, (data_inicio, data_fim))
-        if codigo:
-            db_cursor.execute(query, (data_inicio, data_fim,codigo))
-            
 
-        processes = db_cursor.fetchall()
-        
-        return processes
+        # Query base
+        query = """ 
+            SELECT p.Cod_escritorio, p.numero_processo, 
+                   MAX(p.data_distribuicao) as data_distribuicao, 
+                   p.orgao_julgador, p.tipo_processo, p.status, 
+                   p.uf, p.sigla_sistema, MAX(p.instancia) as instancia, 
+                   p.tribunal, p.ID_processo, MAX(p.LocatorDB) as LocatorDB, 
+                   p.tipo_processo 
+            FROM apidistribuicao.processo AS p 
+            WHERE p.deleted = 0
+        """
+
+        params = []
+
+        # Filtros opcionais
+        if data_inicio and data_fim:
+            query += " AND DATE(p.data_insercao) BETWEEN %s AND %s "
+            params.extend([data_inicio, data_fim])
+
+        if status:
+            query += " AND p.status = %s "
+            params.append(status)
+        else:
+            query += " AND p.status = 'S' "
+
+        if codigo:
+            query += " AND p.Cod_escritorio = %s "
+            params.append(codigo)
+
+        query += """ 
+            GROUP BY p.numero_processo, p.Cod_escritorio, 
+                     p.orgao_julgador, p.tipo_processo, 
+                     p.uf, p.sigla_sistema, p.tribunal, 
+                     ID_processo;
+        """
+
+        # Execução segura
+        db_cursor.execute(query, tuple(params))
+        resultados = db_cursor.fetchall()
+
+        return resultados
     except mysql.connector.Error as err:
         logger.error(f"erro ao validar dados {err}")
         raise BancoError(f"Falha no banco: {err}")
