@@ -6,13 +6,13 @@ def format_numbers_for_db(numbers: Optional[Iterable[str]]) -> str:
     """
     Decide o que vai para a coluna 'numero' no banco, conforme flags.
     """
-    if not getattr(config, "WHATSAPP_ENABLED", True):
+    if not config.WHATSAPP_ENABLED == True:
         logger.info("Envio de WhatsApp está desativado nas configurações.")
-        if getattr(config, "SAVE_WHATSAPP_IN_DB", False):
+        if config.SAVE_WHATSAPP_IN_DB == True:
             if numbers:
                 return ", ".join(numbers)
         # Placeholder padrão
-        return getattr(config, "WHATSAPP_PLACEHOLDER", "WHATSAPP DESATIVADO")
+        return config.WHATSAPP_PLACEHOLDER 
 
     # WhatsApp ligado:
     if not numbers:

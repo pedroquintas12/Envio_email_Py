@@ -140,19 +140,6 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
                
 
-            # Envia o e-mail
-            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject)
-
-            # Se a função retornou erro (status == error)
-            if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":
-                logger.warning(f"Erro ao enviar e-mail para {cliente}({cod_cliente}): {resposta_envio[0].get('message')}")
-                for processo in processos:
-                    status_envio(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'), localizador, email_receiver,
-                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E",False)
-                    contador_Inativos += 1
-                continue  # Pula o restante e vai pro próximo cliente
-
             # Gera e faz o upload do arquivo HTML para o S3
             if env == 'production':
                 object_name = f"{cod_cliente}/{data_do_dia.strftime('%d-%m-%y')}/{localizador}.html"
@@ -171,6 +158,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
             #retorna o link em uma queue
             permanent_url = queue.get()
+            
             if permanent_url:
                 if env == 'test' :
                     cliente_number = ["5581997067420"]
@@ -180,7 +168,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                 if not cliente_number:
                     logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API ou email enviado via API")
                 else:
-                    if getattr(config, "WHATSAPP_ENABLED", True):
+                    if config.WHATSAPP_ENABLED == True:
                         for numero in cliente_number:
                             #envia a mensagem via whatsapp
                             enviar_mensagem_whatsapp(ID_lig,
@@ -192,9 +180,20 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                                                     f"Total: {len(processos)} Distribuições",
                                                     whatslogo
                                                     )
+            # Envia o e-mail
+            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject)
 
-            logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
-                            \n---------------------------------------------------""")
+            # Se a função retornou erro (status == error)
+            if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":
+                logger.warning(f"Erro ao enviar e-mail para {cliente}({cod_cliente}): {resposta_envio[0].get('message')}")
+                for processo in processos:
+                    status_envio(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], processo['localizador'],
+                                data_do_dia.strftime('%Y-%m-%d'), localizador, email_receiver,
+                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E",False)
+                    contador_Inativos += 1
+                continue  # Pula o restante e vai pro próximo cliente
+
+            logger.info(f"""E-mail enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}""")
 
 
             for processo in processos:
@@ -215,6 +214,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     len(processos),
                     subject
                 )
+                logger.info("\n---------------------------------------------------")
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200
