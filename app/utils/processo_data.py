@@ -256,15 +256,14 @@ def fetch_companies():
         logger.error(f"Erro na consulta do banco companies: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
 # Atualiza o status do processo enviado
-def status_processo(processo_id):
+def status_processo(status,processo_id):
     try:
         with get_db_connection() as db_connection:
             with db_connection.cursor() as db_cursor:
-                db_cursor.execute("UPDATE processo SET status = 'S', modified_date = %s WHERE ID_processo = %s", (datetime.now(),processo_id))
-
+                db_cursor.execute("UPDATE processo SET status = %s, modified_date = %s WHERE ID_processo = %s", (status,datetime.now(),processo_id))
                 db_connection.commit()
     except Exception as err:
-        logger.error(f"Erro ao atulaizar status do email para 'S': {err}")
+        logger.error(f"Erro ao atulaizar status do email para {status}: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
 
 # Insere no banco o email enviado
@@ -292,20 +291,6 @@ def status_envio(processo_id = int, numero_processo= str, cod_escritorio = int, 
         logger.error(f"Erro ao inserir o email no banco de dados: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
 
-
-def cliente_erro(ID_processo):
-    try:
-        with get_db_connection() as db_connection:
-            with db_connection.cursor() as db_cursor:
-                db_cursor.execute("""UPDATE apidistribuicao.processo SET status = 'E', modified_date = %s  WHERE (ID_processo = %s)""", (datetime.now(),ID_processo))
-                logger.warning(f"Processo '{ID_processo}' marcado com 'E'! ")
-
-                db_connection.commit()
-
-    
-    except Exception as err:
-        logger.error(f"erro ao atualizar Status de erro: {err}")
-        raise ErroInterno(f"Erro inesperado: {err}")
 
 def validar_dados(data_inicio=None, data_fim=None, codigo=None, status=None):
     try:

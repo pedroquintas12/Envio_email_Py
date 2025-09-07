@@ -10,26 +10,28 @@ def processo_exemplo():
         "cod_escritorio": 42,
         "localizador": "abc-123"
     }
-
 def test_marcar_processado_se_automatico_chama_status_processo(monkeypatch, processo_exemplo):
-    called = {"count": 0, "last_id": None}
+    called = {"count": 0, "last_id": None, "last_status": None}
 
-    def fake_status_processo(pid):
+    def fake_status_processo(status, pid):
         called["count"] += 1
         called["last_id"] = pid
+        called["last_status"] = status
 
     # monkeypatch da função real usada dentro do repo
     import app.repository.envio_repository as repo_mod
     monkeypatch.setattr(repo_mod, "status_processo", fake_status_processo)
 
     # quando origem = "Automatico" deve chamar
-    EnvioRepository.marcar_processado_se_automatico(processo_exemplo["ID_processo"], "Automatico")
+    EnvioRepository.marcar_processado_se_automatico("S", processo_exemplo["ID_processo"], "Automatico")
     assert called["count"] == 1
     assert called["last_id"] == processo_exemplo["ID_processo"]
+    assert called["last_status"] == "S"
 
     # quando origem != "Automatico" NÃO chama
-    EnvioRepository.marcar_processado_se_automatico(processo_exemplo["ID_processo"], "API")
+    EnvioRepository.marcar_processado_se_automatico("E", processo_exemplo["ID_processo"], "API")
     assert called["count"] == 1  # não incrementou
+
 
 def test_registrar_sucesso_chama_status_envio_com_parametros(monkeypatch, processo_exemplo):
     captured = {"args": None, "kwargs": None}
@@ -78,4 +80,37 @@ def test_registrar_sucesso_chama_status_envio_com_parametros(monkeypatch, proces
         total,
         "S",
         subject
+    )
+
+def tester_registrar_falha_chama_status_envio_com_parametros(monkeypatch, processo_exemplo):
+    captured = {"args": None, "kwargs": None}
+
+    def fake_status_envio(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+    import app.repository.envio_repository as repo_mod
+    monkeypatch.setattr(repo_mod, "status_envio", fake_status_envio)
+
+    data_str = "2025-09-03"
+    localizador = "loc-123"
+    email_receiver = ["contato@cliente.com"]
+    numero_para_db = "WHATSAPP DESATIVADO"
+    permanent_url = "https://s3/link.html"
+    origem = "Automatico"
+    total = 7
+    subject = "ASSUNTO TESTE"
+
+    EnvioRepository.registrar_falha(
+        processo=processo_exemplo,
+        data_str=data_str,
+        localizador=localizador,
+        email_receiver=email_receiver,
+        menssagem="Erro ao enviar",
+        numero_para_db=numero_para_db,
+        permanent_url=permanent_url,
+        origem=origem,
+        total_processos=total,
+        status="E",
+        subject=subject
     )

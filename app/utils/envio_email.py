@@ -6,15 +6,15 @@ from templates.template import generate_email_body
 from scripts.mail_sender import send_email
 import uuid
 from config.logger_config import logger
-from scripts.send_whatsapp import enviar_mensagem_whatsapp
 from scripts.uploud_To_S3 import thread_function
-from app.utils.processo_data import fetch_companies,cliente_erro,status_envio,cliente_erro
+from app.utils.processo_data import fetch_companies,status_envio
 from app.apiLig import fetch_email_api,fetch_numero_api
 from config.JWT_helper import get_random_cached_token
 from config import config
 import locale
 from app.repository.envio_repository import EnvioRepository
 from app.service.persistence_policy import format_numbers_for_db
+from app.service.envio_whatsapp import WhatsappService
 
 def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None ,codigo= None, status= None,numero_processo=None, token = None):
     try:
@@ -79,11 +79,11 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     # Se o cliente não tem email para ser enviado, marca todos os processos com erro
                     if not emails and not email:
                         logger.warning(f"VSAP: {cod_cliente} não tem email cadastrado ou está bloqueado")
-                        cliente_erro(ID_processo)                        
+                        EnvioRepository.marcar_processado_se_automatico("E",ID_processo,Origem)                        
                         # Adiciona erro no histórico
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
-                                    'N/A','NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E",False)
+                                    'N/A','NÃO ENVIADO - SEM EMAIL CADASTRADO NA API', "N/A", None, Origem, len(processos),"E",subject)
                         
                         erro_no_cliente = True
                         continue
@@ -91,22 +91,22 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     # Verifica se o cliente tem código na API
                     if not cliente_STATUS:
                         logger.warning(f"VSAP: {cod_cliente} não está cadastrado na API, email não enviado!")
-                        cliente_erro(ID_processo)  # Marca este processo com erro
+                        EnvioRepository.marcar_processado_se_automatico("E",ID_processo,Origem) # Marca este processo com erro
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
                                     'N/A','NÃO ENVIADO - CLIENTE NÃO CADASTRADO NA API',"N/A", None,
-                                      Origem, len(processos),"E",False)
+                                      Origem, len(processos),"E",subject)
                         erro_no_cliente = True                   
                         continue  # Continua para o próximo processo
 
                     # Verifica se o Status do cliente está "Liberado (L)"
                     if cliente_STATUS[0] != 'L':
                         logger.warning(f"VSAP: {cod_cliente} não está ativo na API, email não enviado!")
-                        cliente_erro(ID_processo)  # Marca este processo com erro
+                        EnvioRepository.marcar_processado_se_automatico("E",ID_processo,Origem)  # Marca este processo com erro
                         status_envio(ID_processo, numero_processo, cod_cliente, LocatorDB, 
                                     data_do_dia.strftime('%Y-%m-%d'), localizador, 
                                     'N/A',f'NÃO ENVIADO - STATUS DO CLIENTE({cliente_STATUS})' ,"N/A", None, 
-                                    Origem, len(processos),"E",False)
+                                    Origem, len(processos),"E",subject)
                         erro_no_cliente = True
                         continue  # Continua para o próximo processo
 
@@ -160,36 +160,30 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
             permanent_url = queue.get()
             
             if permanent_url:
-                if env == 'test' :
-                    cliente_number = ["5581997067420"]
-                if Origem == 'API':
-                    cliente_number = None
-                #verifica se o cliente tem numero para ser enviado
-                if not cliente_number:
-                    logger.warning(f"Cliente: '{cod_cliente}' não tem número cadastrado na API ou email enviado via API")
-                else:
-                    if config.WHATSAPP_ENABLED == True:
-                        for numero in cliente_number:
-                            #envia a mensagem via whatsapp
-                            enviar_mensagem_whatsapp(ID_lig,
-                                                    url_Sirius,
-                                                    sirius_Token,
-                                                    numero,
-                                                    permanent_url,
-                                                    f"Distribuição de novas ações - {cliente}",
-                                                    f"Total: {len(processos)} Distribuições",
-                                                    whatslogo
-                                                    )
+                WhatsappService.enviar_whatsapp(
+                    cod_cliente,
+                    cliente,
+                    cliente_number,
+                    processos,
+                    ID_lig,
+                    url_Sirius,
+                    sirius_Token,
+                    permanent_url,
+                    whatslogo,
+                    env,
+                    Origem
+                )
             # Envia o e-mail
             resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject)
+
 
             # Se a função retornou erro (status == error)
             if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":
                 logger.warning(f"Erro ao enviar e-mail para {cliente}({cod_cliente}): {resposta_envio[0].get('message')}")
                 for processo in processos:
-                    status_envio(processo['ID_processo'], processo['numero_processo'], processo['cod_escritorio'], processo['localizador'],
-                                data_do_dia.strftime('%Y-%m-%d'), localizador, email_receiver,
-                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E",False)
+                    EnvioRepository.marcar_processado_se_automatico("E",processo['numero_processo'], Origem)
+                    EnvioRepository.registrar_falha(processo, data_do_dia.strftime('%Y-%m-%d'), localizador, email_receiver,
+                                f'FALHA ENVIO EMAIL {resposta_envio[0].get('message')}', 'N/A', None, Origem, len(processos), "E",subject)
                     contador_Inativos += 1
                 continue  # Pula o restante e vai pro próximo cliente
 
@@ -201,7 +195,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
 
                 numero_para_db = format_numbers_for_db(cliente_number if isinstance(cliente_number, list) else None)
 
-                EnvioRepository.marcar_processado_se_automatico(processo_id, Origem)
+                EnvioRepository.marcar_processado_se_automatico("S",processo_id, Origem)
 
                 EnvioRepository.registrar_sucesso(
                     processo,

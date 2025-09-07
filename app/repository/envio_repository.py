@@ -16,8 +16,7 @@ class EnvioRepository:
     ):
         """
         Encapsula a chamada ao status_envio para SUCESSO.
-        Se amanhã mudar a assinatura de status_envio,
-        você só ajusta aqui.
+        Se amanhã mudar a assinatura de status_envio.
         """
         status_envio(
             processo['ID_processo'],
@@ -37,6 +36,42 @@ class EnvioRepository:
         )
 
     @staticmethod
-    def marcar_processado_se_automatico(processo_id: int, origem: str):
+    def marcar_processado_se_automatico(status:str ,processo_id: int, origem: str):
         if origem == "Automatico":
-            status_processo(processo_id)
+            status_processo(status,processo_id)
+
+    @staticmethod
+    def registrar_falha(
+        processo: dict,
+        data_str: str,
+        localizador: str,
+        email_receiver: str,
+        menssagem: str,
+        numero_para_db: str,
+        permanent_url: Optional[str],
+        origem: str,
+        total_processos: int,
+        status: str,
+        subject: str
+    ):
+        """
+        Encapsula a chamada ao status_envio para FALHA.
+        Se amanhã mudar a assinatura de status_envio.
+        """
+        status_envio(
+            processo['ID_processo'],
+            processo['numero_processo'],
+            processo['cod_escritorio'],
+            processo['localizador'],
+            data_str,
+            localizador,
+            email_receiver,
+            menssagem,
+            numero_para_db,
+            permanent_url,
+            origem,
+            total_processos,
+            status,
+            subject
+          )
+        
