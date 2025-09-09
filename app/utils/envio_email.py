@@ -208,7 +208,7 @@ def enviar_emails(data_inicio = None, data_fim=None, Origem= None, email = None 
                     len(processos),
                     subject
                 )
-                logger.info("\n---------------------------------------------------")
+            logger.info("\n---------------------------------------------------")
 
         logger.info(f"Envio finalizado, total de escritorios enviados: {total_escritorios - contador_Inativos}")
         return {"status": "success", "message": "Emails enviados com sucesso"}, 200

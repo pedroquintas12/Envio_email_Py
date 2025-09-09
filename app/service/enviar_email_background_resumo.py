@@ -1,7 +1,16 @@
+from typing import Dict, Optional
 from config.logger_config import logger
 from app.utils.envio_email_resumo import enviar_emails_resumo
 
-def enviar_emails_background_resumo(data_inicial=None, origem="API", email=None, codigo=None, result_holder=None, token =None):
+def enviar_emails_background_resumo(
+    data_inicial: Optional[str] = None,   # ou datetime, se for data real
+    origem: str = "API",
+    email: Optional[str] = None,
+    codigo: Optional[int] = None,         # se for inteiro
+    result_holder: Optional[Dict] = None, # se for dicionário
+    token: Optional[str] = None
+) -> None:    
+
     try:
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} código: {codigo} para o email: {email}")
         

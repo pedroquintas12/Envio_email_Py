@@ -17,7 +17,12 @@ from config import config
 import locale
 
 
-def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo= None,token = None):
+def enviar_emails_resumo(
+        Origem= None,
+        data_inicial = None ,
+        email = None ,
+        codigo= None,
+        token = None):
     try:
         data_do_dia_obj = datetime.now()
         registros_bulk = []
@@ -43,6 +48,8 @@ def enviar_emails_resumo(Origem= None,data_inicial = None ,email = None ,codigo=
         # Busca os dados dos clientes e processos
         clientes_data = processar_envio_publicacoes(id_companies,codigo,data_inicio_obj,token)
 
+        if clientes_data == None or not clientes_data:
+            return {"status": "error", "message": f"Nenhum processo encontrado para o código {codigo} "}, 404
         
         contador_Inativos = 0
 
