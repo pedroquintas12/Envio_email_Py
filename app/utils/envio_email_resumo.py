@@ -183,6 +183,7 @@ def enviar_emails_resumo(
                             \n---------------------------------------------------""")
 
             if Origem in ("API", "Automatico"):
+                logger.info("iniciando o registro no histórico de envios...")
                 registros_bulk.append((
                     processo['cod_escritorio'],
                     data_do_dia.strftime('%Y-%m-%d'),

@@ -732,7 +732,7 @@ def status_envio_resumo_bulk(lista_registros):
         conn = get_db_connection()
         # cursor preparado = protocolo binário (melhor p/ BLOBs grandes)
         cur = conn.cursor(prepared=True)
-
+        logger.info("Iniciando inserção em lote de emails de resumo...")
         total = len(lista_com_data)
         for start in range(0, total, BATCH_SIZE):
             chunk = lista_com_data[start:start+BATCH_SIZE]
@@ -742,6 +742,7 @@ def status_envio_resumo_bulk(lista_registros):
                 try:
                     cur.executemany(sql, chunk)
                     conn.commit()
+                    logger.info(f"Lote inserido: {start+1} a {start+len(chunk)} de {total}")
                     break
                 except OperationalError as e:
                     # 2006 = MySQL server has gone away, 2013 = Lost connection during query
