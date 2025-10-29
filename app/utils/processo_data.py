@@ -703,27 +703,27 @@ RETRY_SLEEP_BASE = 1.5  # segundos
 def status_envio_resumo_bulk(lista_registros):
     """
     lista_registros contém tuplas:
-    (p_id, num_proc, cod_escr, data_envio, local_email, subj, email, msg, link, origem, total_proc, status, arquivo_blob)
+    (cod_escr, data_envio, local_email, subj, email, msg, link, origem, total_proc, status, arquivo_blob)
     """
     # monta aqui a lista com datetime.now() ANTES do status, como seu SQL pede
     lista_com_data = [
         (
-            p_id, num_proc, cod_escr, data_envio, local_email,
+            cod_escr, data_envio, local_email,
             subj, email, msg, link, origem, total_proc,
             datetime.now(), status, arquivo_blob
         )
-        for (p_id, num_proc, cod_escr, data_envio, local_email,
+        for (cod_escr, data_envio, local_email,
              subj, email, msg, link, origem, total_proc, status, arquivo_blob)
         in lista_registros
     ]
 
     sql = ("""
         INSERT INTO publicacao_envio_resumo (
-            id_processo, numero_processo, cod_escritorio,
+            cod_escritorio,
             data_envio, localizador_email, subject, email_envio, menssagem,
             link_s3, Origem, total, data_hora_envio, status, arquivo_base64
         )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """)
 
     conn = None

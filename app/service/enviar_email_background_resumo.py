@@ -11,7 +11,7 @@ def enviar_emails_background_resumo(
     token: Optional[str] = None
 ) -> None:    
 
-    try:
+    try:    
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} código: {codigo} para o email: {email}")
         
         # Chamada da função de envio de e-mails

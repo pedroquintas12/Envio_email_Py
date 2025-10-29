@@ -182,25 +182,20 @@ def enviar_emails_resumo(
             logger.info(f"""E-mail de resumo enviado para {cliente}({cod_cliente}) às {datetime.now().strftime('%H:%M:%S')} - Total de processos: {len(processos)}
                             \n---------------------------------------------------""")
 
-            for processo in processos:
-                processo_id = processo['publications_id']
-
-                if Origem in ("API", "Automatico"):
-                    registros_bulk.append((
-                        processo_id,
-                        processo['numero_processo'],
-                        processo['cod_escritorio'],
-                        data_do_dia.strftime('%Y-%m-%d'),
-                        localizador_email,
-                        subject,
-                        email_receiver,
-                        'SUCESSO',
-                        permanent_url,
-                        Origem,
-                        len(processos),
-                        "S",
-                        attachment_BLOB
-                    ))
+            if Origem in ("API", "Automatico"):
+                registros_bulk.append((
+                    processo['cod_escritorio'],
+                    data_do_dia.strftime('%Y-%m-%d'),
+                    localizador_email,
+                    subject,
+                    email_receiver,
+                    'SUCESSO',
+                    permanent_url,
+                    Origem,
+                    len(processos),
+                    "S",
+                    attachment_BLOB
+                ))
 
             # Só executa 1 insert em lote no final
             if registros_bulk:

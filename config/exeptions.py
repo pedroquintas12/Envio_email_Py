@@ -10,7 +10,7 @@ class AppError(Exception):
         super().__init__(mensagem)
 
     def to_dict(self):
-        return {
+        return {    
             "mensagem": self.mensagem,
             "tipo": self.tipo,
             "status": "error",
