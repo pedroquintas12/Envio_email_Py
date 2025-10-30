@@ -2,7 +2,7 @@ from functools import wraps
 import gzip
 from io import BytesIO
 from threading import Thread
-from app.service.enviar_email_background_resumo import enviar_emails_background_resumo
+from app.service.enviar_email_background_resumo import enviar_emails_background_cobranca, enviar_emails_background_resumo
 import jwt
 import requests
 from config.logger_config import logger
@@ -651,3 +651,51 @@ def log_resumo(localizador):
         return jsonify({"error": "Erro na API"}), 500
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expirado"}), 401
+    
+
+@main_bp.route('/api/enviarCobranca/<string:autor>', methods=['POST'])
+@token_required
+def envio_cobranca(autor):
+    data = request.get_json()
+    codigo_escritorio = data.get('office_code')
+    content = data.get('content')
+
+
+    if not codigo_escritorio or not content:
+        return jsonify({"error": "Parâmetros 'office_code' e 'content' são obrigatórios!"}), 400
+
+    result_holder = {}
+
+    # Processamento em segundo plano como no forcar_envio
+    thread = Thread(
+        target=enviar_emails_background_cobranca,  # precisa criar ou adaptar função específica para resumo
+        args=(codigo_escritorio,content,autor,result_holder)
+    )
+    thread.start()
+    thread.join()
+
+    # Acessa resultado do processamento
+    result = result_holder.get("result")
+
+    if not result:
+        return jsonify({
+            "error": "Erro ao processar o envio da cobrança.",
+            "message": "Não foi possível obter o resultado do envio."
+        }), 500
+
+    status = result.get('status')
+    message = result.get('message')
+    code = result.get('code', 500)
+
+    if code != 200:
+        return jsonify({
+            "error": message,
+            "status": status,
+            "codigo": code
+        }), code
+
+    return jsonify({
+        "message": "cobrança enviada com sucesso.",
+        "resultado": result
+        }), 200
+        

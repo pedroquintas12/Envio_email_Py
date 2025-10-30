@@ -1,6 +1,8 @@
 from datetime import datetime
 from sqlite3 import DatabaseError, OperationalError
 import time
+
+from flask import jsonify
 from config.logger_config import logger
 from config.db_conexão import get_db_connection
 from app.apiLig import fetch_cliente_api_dashboard, fetch_cliente_api
@@ -913,4 +915,77 @@ def fetch_log_resumo(localizador):
 
     except Exception as err:
         logger.error(f"Erro na consulta do banco fetch_log_resumo: {err}")
+        raise ErroInterno(f"Erro inesperado: {err}")
+    
+
+def cadastrar_cliente_cobranca(codigo_escritorio: int, emails_cobranca: str):
+    db_connection = get_db_connection()
+    db_cursor = db_connection.cursor(dictionary=True)
+
+    try:
+        # verifica se tem cliente
+        db_cursor.execute("""SELECT * from clientes_cobranca where Cod_escritorio = %s""",(codigo_escritorio,))
+        cliente = db_cursor.fetchone()
+        if cliente:
+            return jsonify({"message": "Cliente de cobrança já cadastrado", "status": "existente"}),409
+        nome_escritorio,office_id,status_escritorio = fetch_cliente_api(codigo_escritorio,get_random_cached_token(Refresh=True))
+
+        if status_escritorio != "L":
+            return jsonify({"message": "Escritório não está liberado para cadastro", "status": "error"}),400
+        
+        db_cursor.execute(
+            """"INSERT INTO clientes_cobranca(Cod_escritorio,cliente,emails_cobranca)
+               VALUES (%s,%s,%s)""",
+            (codigo_escritorio,nome_escritorio,emails_cobranca)
+        )
+        db_connection.commit()
+        return jsonify({"message": "Cliente de cobrança cadastrado com sucesso", "status": "novo"}),201
+    except mysql.connector.Error as err:
+        logger.error(f"erro na consulta do banco clientes_cobranca: {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"erro na consulta do banco clientes_cobranca: {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
+    
+def fetch_cliente_cobranca(cod_escritorio: int):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as db_cursor:
+                query = """
+                    SELECT 
+                        Cod_escritorio,
+                        cliente,
+                        emails_cobranca
+                    FROM clientes_cobranca
+                    WHERE Cod_escritorio = %s
+                """
+                db_cursor.execute(query, (cod_escritorio,))
+                result = db_cursor.fetchone()
+                
+                return result
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar fetch_cliente_cobranca {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar fetch_cliente_cobranca {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
+
+def status_envio_cobranca(cod_escritorio:int,email_receiver:str,subject:str,content:str,status:str,menssagem:str,autor:str):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor() as db_cursor:
+                db_cursor.execute("""
+                    INSERT INTO cobranca_emails (cod_escritorio, email_envio, subject, content, status, menssagem, autor, data_hora_envio)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (cod_escritorio, email_receiver, subject, content, status, menssagem, autor, datetime.now()))
+                
+                db_connection.commit()
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao inserir o email de cobrança no banco de dados: {err}")
+        raise BancoError(f"Falha no banco: {err}")
+
+    except Exception as err:
+        logger.error(f"Erro ao inserir o email de cobrança no banco de dados: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
