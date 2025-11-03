@@ -22,7 +22,8 @@ def enviar_emails_resumo(
         data_inicial = None ,
         email = None ,
         codigo= None,
-        token = None):
+        token = None,
+        tipo = None):
     try:
         data_do_dia_obj = datetime.now()
         registros_bulk = []
@@ -145,7 +146,7 @@ def enviar_emails_resumo(
 
 
             # Envia o e-mail
-            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject,attachment,cliente,data_do_dia.strftime('%Y-%m-%d'))
+            resposta_envio = send_email(smtp_config, email_body, email_receiver, bcc_receivers, cc_receiver, subject,attachment,cliente,data_do_dia.strftime('%Y-%m-%d'),tipo=tipo)
 
             # Se a função retornou erro (status == error)
             if isinstance(resposta_envio, tuple) and resposta_envio[0].get("status") == "error":

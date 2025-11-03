@@ -11,7 +11,7 @@ schedule.every().day.at("16:00").do(
     lambda: enviar_emails(data_inicio=None, data_fim=None, Origem="Automatico",status = "P"))
 
 schedule.every().day.at("17:00").do(
-    lambda: enviar_emails_resumo(data_inicial=None, Origem="Automatico",email=None,token=None))
+    lambda: enviar_emails_resumo(data_inicial=None, Origem="Automatico",email=None,token=None, tipo="xlsx"))
 
 
 def run_scheduler():

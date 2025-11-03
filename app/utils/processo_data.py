@@ -1,4 +1,5 @@
 from datetime import datetime
+import math
 from sqlite3 import DatabaseError, OperationalError
 import time
 
@@ -734,7 +735,6 @@ def status_envio_resumo_bulk(lista_registros):
         conn = get_db_connection()
         # cursor preparado = protocolo binário (melhor p/ BLOBs grandes)
         cur = conn.cursor(prepared=True)
-        logger.info("Iniciando inserção em lote de emails de resumo...")
         total = len(lista_com_data)
         for start in range(0, total, BATCH_SIZE):
             chunk = lista_com_data[start:start+BATCH_SIZE]
@@ -744,7 +744,6 @@ def status_envio_resumo_bulk(lista_registros):
                 try:
                     cur.executemany(sql, chunk)
                     conn.commit()
-                    logger.info(f"Lote inserido: {start+1} a {start+len(chunk)} de {total}")
                     break
                 except OperationalError as e:
                     # 2006 = MySQL server has gone away, 2013 = Lost connection during query
@@ -919,27 +918,34 @@ def fetch_log_resumo(localizador):
     
 
 def cadastrar_cliente_cobranca(codigo_escritorio: int, emails_cobranca: str):
-    db_connection = get_db_connection()
-    db_cursor = db_connection.cursor(dictionary=True)
+    db = get_db_connection()
+    cur = db.cursor(dictionary=True)
 
     try:
-        # verifica se tem cliente
-        db_cursor.execute("""SELECT * from clientes_cobranca where Cod_escritorio = %s""",(codigo_escritorio,))
-        cliente = db_cursor.fetchone()
-        if cliente:
-            return jsonify({"message": "Cliente de cobrança já cadastrado", "status": "existente"}),409
-        nome_escritorio,office_id,status_escritorio = fetch_cliente_api(codigo_escritorio,get_random_cached_token(Refresh=True))
+        cur.execute("SELECT * FROM `clientes_cobranca` WHERE `Cod_escritorio`=%s", (codigo_escritorio,))
+        existente = cur.fetchone()
+        if existente:
+            return {"message": "Cliente de cobrança já cadastrado", "status": "existente"}, 409
+
+        nome_escritorio, office_id, status_escritorio = fetch_cliente_api(
+            codigo_escritorio,
+            get_random_cached_token(Refresh=True)
+        )
 
         if status_escritorio != "L":
-            return jsonify({"message": "Escritório não está liberado para cadastro", "status": "error"}),400
-        
-        db_cursor.execute(
-            """"INSERT INTO clientes_cobranca(Cod_escritorio,cliente,emails_cobranca)
-               VALUES (%s,%s,%s)""",
-            (codigo_escritorio,nome_escritorio,emails_cobranca)
+            return {"message": "Escritório não está liberado para cadastro", "status": "error"}, 400
+
+        cur.execute(
+            """
+            INSERT INTO `clientes_cobranca` (`Cod_escritorio`,`cliente`,`emails_cobranca`)
+            VALUES (%s,%s,%s)
+            """,
+            (codigo_escritorio, nome_escritorio, emails_cobranca)
         )
-        db_connection.commit()
-        return jsonify({"message": "Cliente de cobrança cadastrado com sucesso", "status": "novo"}),201
+        db.commit()
+
+        return {"message": "Cliente de cobrança cadastrado com sucesso", "status": "novo"}, 201
+
     except mysql.connector.Error as err:
         logger.error(f"erro na consulta do banco clientes_cobranca: {err}")
         raise BancoError(f"Falha no banco: {err}")
@@ -989,3 +995,114 @@ def status_envio_cobranca(cod_escritorio:int,email_receiver:str,subject:str,cont
     except Exception as err:
         logger.error(f"Erro ao inserir o email de cobrança no banco de dados: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
+
+
+
+# Colunas permitidas para ordenação (previne SQL injection)
+SORTABLE_COLS = {
+    "Cod_escritorio": "Cod_escritorio",
+    "cliente": "cliente",
+    "emails_cobranca": "emails_cobranca",
+}
+
+def listar_clientes_cobranca(
+    page: int = 1,
+    per_page: int = 20,
+    q: str | None = None,
+    sort: str = "cliente",
+    order: str = "asc",
+):
+    """
+    Paginação simples (offset/limit) + busca opcional (q) + ordenação segura.
+
+    Retorna:
+    {
+      "items": [...],
+      "page": 1,
+      "per_page": 20,
+      "total": 123,
+      "total_pages": 7,
+      "has_next": True,
+      "has_prev": False
+    }
+    """
+    try:
+        # sane defaults
+        page = max(1, int(page or 1))
+        per_page = max(1, min(int(per_page or 20), 100))  # limita a 100
+        order = (order or "asc").lower()
+        order = "desc" if order == "desc" else "asc"
+
+        sort_col = SORTABLE_COLS.get(sort or "cliente", "cliente")
+
+        where = []
+        params = []
+
+        if q:
+            like = f"%{q}%"
+            where.append(
+                "(Cod_escritorio LIKE %s OR cliente LIKE %s OR emails_cobranca LIKE %s)"
+            )
+            params.extend([like, like, like])
+
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+
+        # 1) total
+        count_sql = f"""
+            SELECT COUNT(*) AS total
+            FROM clientes_cobranca
+            {where_sql}
+        """
+
+        # 2) página (ordenada e paginada)
+        data_sql = f"""
+            SELECT
+                Cod_escritorio,
+                cliente,
+                emails_cobranca
+            FROM clientes_cobranca
+            {where_sql}
+            ORDER BY {sort_col} {order}
+            LIMIT %s OFFSET %s
+        """
+
+        offset = (page - 1) * per_page
+
+        with get_db_connection() as db:
+            with db.cursor(dictionary=True) as cur:
+                # total
+                cur.execute(count_sql, params)
+                row = cur.fetchone()
+                total = int(row["total"] if row and row.get("total") is not None else 0)
+
+                # itens
+                cur.execute(data_sql, params + [per_page, offset])
+                rows = cur.fetchall() or []
+
+        items = [
+            {
+                "Cod_escritorio": r["Cod_escritorio"],
+                "cliente": r["cliente"],
+                "emails_cobranca": r["emails_cobranca"],
+            }
+            for r in rows
+        ]
+
+        total_pages = max(1, math.ceil(total / per_page)) if total else 1
+
+        return {
+            "items": items,
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+        }
+
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao paginar clientes_cobranca: {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"Erro inesperado ao paginar clientes_cobranca: {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")

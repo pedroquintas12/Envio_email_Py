@@ -17,7 +17,7 @@ def enviar_emails_background_resumo(
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} código: {codigo} para o email: {email}")
         
         # Chamada da função de envio de e-mails
-        result = enviar_emails_resumo(origem, data_inicial,email, codigo,token)
+        result = enviar_emails_resumo(origem, data_inicial,email, codigo,token, tipo="xlsx")
 
         status_result, code = result
         # Verifica se status_result é um dicionário de erro
@@ -53,46 +53,44 @@ def enviar_emails_background_resumo(
                 "code": 500,
             }
 
+from typing import Optional, Dict
+from datetime import datetime
+from config.logger_config import logger
+
 def enviar_emails_background_cobranca(
-    codigo: Optional[int] = None,         # se for inteiro
+    app,
+    codigo: Optional[int] = None,
     content: Optional[str] = None,
     autor: Optional[str] = None,
-    result_holder: Optional[Dict] = None, # se for dicionário
-) -> None:    
+    result_holder: Optional[Dict] = None,
+    pdf_bytes: Optional[bytes] = None,
+    pdf_filename: Optional[str] = None
+) -> None:
+    try:
+        with app.app_context():
+            logger.info(f"Iniciando envio de cobrança para código: {codigo} as {datetime.now():%Y-%m-%d %H:%M:%S}")
 
-    try:    
-        logger.info(f"Iniciando envio de cobrança para código: {codigo} as {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}") 
-        
-        # Chamada da função de envio de e-mails
-        result = enviar_email_cobranca(codigo,content, autor)
+            # >>> enviar_email_cobranca agora devolve (dict_result, http_code), sem jsonify
+            result_dict, http_code = enviar_email_cobranca(codigo, content, autor, pdf_bytes, pdf_filename)
 
-        status_result, code = result
-        # Verifica se status_result é um dicionário de erro
-        if isinstance(status_result, dict):
-            status_message = status_result.get('status', 'unknown')
-            message = status_result.get('message')  # Atualiza a mensagem com detalhes do erro, se presente
-            codigo_api = code
-        else:
-            status_message = status_result
+            status_message = result_dict.get('status', 'unknown')
+            message = result_dict.get('message', '')
+            codigo_api = http_code
 
-        # Armazena no result_holder se fornecido
-        if result_holder is not None:
-            result_holder["result"] = {
-                "status": status_message,
-                "message": message,
-                "code": codigo_api,
-            }
-        
-        # Logs baseados no resultado
-        if codigo_api == 200:
-            logger.info(f"Envio de e-mails concluído com status={status_message}, código={codigo_api}, mensagem={message}")
-        else:
-            logger.error(f"Erro ao enviar email! Status: {status_message}, Código: {codigo_api}, Mensagem: {message}")
-        
+            if result_holder is not None:
+                result_holder["result"] = {
+                    "status": status_message,
+                    "message": message,
+                    "code": codigo_api,
+                }
+
+            if codigo_api == 200:
+                logger.info(f"Envio de e-mails concluído: status={status_message}, código={codigo_api}, msg={message}")
+            else:
+                logger.error(f"Erro no envio: status={status_message}, código={codigo_api}, msg={message}")
+
     except Exception as e:
         logger.error(f"Erro ao enviar e-mails: {e}")
-        
-        # Armazena a exceção no result_holder
         if result_holder is not None:
             result_holder["result"] = {
                 "status": "erro",

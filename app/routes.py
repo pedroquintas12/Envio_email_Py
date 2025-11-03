@@ -7,10 +7,10 @@ import jwt
 import requests
 from config.logger_config import logger
 from app.utils.envio_email import enviar_emails
-from flask import Blueprint, jsonify, request, send_file
-from config.exeptions import AppError
+from flask import Blueprint, current_app, jsonify, request, send_file
+from config.exeptions import AppError, BancoError, ErroInterno
 from config import config
-from app.utils.processo_data import fetch_log_resumo, total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo,fetch_anexo_resumo
+from app.utils.processo_data import cadastrar_cliente_cobranca, fetch_log_resumo, listar_clientes_cobranca, total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo,fetch_anexo_resumo
 from config.JWT_helper import save_token_in_cache,get_cached_token
 from app.apiLig import fetch_email_api,fetch_numero_api,fetch_cliente_api
 from app.utils.salvar_base64 import salvar_arquivo_base64
@@ -653,30 +653,61 @@ def log_resumo(localizador):
         return jsonify({"error": "Token expirado"}), 401
     
 
+from werkzeug.utils import secure_filename
+ALLOWED_MIMES = ["application/pdf"]
 @main_bp.route('/api/enviarCobranca/<string:autor>', methods=['POST'])
 @token_required
 def envio_cobranca(autor):
-    data = request.get_json()
-    codigo_escritorio = data.get('office_code')
-    content = data.get('content')
+    content_type = request.content_type or ""
 
+    codigo_escritorio = None
+    content = None
+    pdf_bytes = None
+    pdf_filename = None
 
-    if not codigo_escritorio or not content:
-        return jsonify({"error": "Parâmetros 'office_code' e 'content' são obrigatórios!"}), 400
+    if "multipart/form-data" in content_type.lower():
+        form = request.form
+        codigo_escritorio = form.get('office_code')
+        content = form.get('content')  
+
+        file = request.files.get('pdf')
+        if file and file.filename:
+            pdf_filename = secure_filename(file.filename)
+            # Validação de mimetype (melhor ainda é checar magic-bytes)
+            if (file.mimetype or "").lower() not in ALLOWED_MIMES and not pdf_filename.lower().endswith(".pdf"):
+                return jsonify({"error": "O arquivo enviado deve ser um PDF."}), 400
+            pdf_bytes = file.read()
+            if not pdf_bytes:
+                return jsonify({"error": "PDF vazio ou não pôde ser lido."}), 400
+        else:
+            return jsonify({"error": "Campo 'arquivo' é obrigatório no envio multipart."}), 400
+            
+
+    else:
+        try:
+            data = request.get_json(silent=True) or {}
+        except Exception:
+            data = {}
+        codigo_escritorio = data.get('office_code')
+        content = data.get('content')
+
+    if not codigo_escritorio:
+        return jsonify({"error": "Parâmetro 'office_code' é obrigatório!"}), 400
+
+    if not content :
+        return jsonify({"error": "Envie 'content' (texto) !"}), 400
+    app = current_app._get_current_object()
 
     result_holder = {}
 
-    # Processamento em segundo plano como no forcar_envio
     thread = Thread(
-        target=enviar_emails_background_cobranca,  # precisa criar ou adaptar função específica para resumo
-        args=(codigo_escritorio,content,autor,result_holder)
+        target=enviar_emails_background_cobranca,
+        args=(app,codigo_escritorio, content, autor, result_holder, pdf_bytes, pdf_filename)
     )
     thread.start()
     thread.join()
 
-    # Acessa resultado do processamento
     result = result_holder.get("result")
-
     if not result:
         return jsonify({
             "error": "Erro ao processar o envio da cobrança.",
@@ -695,7 +726,46 @@ def envio_cobranca(autor):
         }), code
 
     return jsonify({
-        "message": "cobrança enviada com sucesso.",
+        "message": "Cobrança enviada com sucesso.",
         "resultado": result
-        }), 200
+    }), 200
         
+
+
+@main_bp.route('/api/cadastrarClienteCobranca', methods=['POST'])
+@token_required
+def cadastrar_cliente_cobranca_api():
+    data = request.get_json()
+    cod_cliente = data.get('cod_cliente')
+    email = data.get('email')
+
+    if not cod_cliente or not email:
+        return jsonify({'error':'Obrigatorio codigo do cliente e email'}),400
+    
+
+    try:
+        # service retorna (dict, status_code)
+        result, status_code = cadastrar_cliente_cobranca(cod_cliente, email)
+    except BancoError as e:
+        logger.error("Erro de banco ao cadastrar cliente cobrança")
+        return jsonify({'error': str(e)}), 500
+    except ErroInterno as e:
+        logger.error("Erro interno ao cadastrar cliente cobrança")
+        return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        logger.errorrrent_app.logger.exception("Exceção não tratada ao cadastrar cliente cobrança")
+        return jsonify({'error': f'Falha inesperada: {e}'}), 500
+    
+    return jsonify(result), status_code
+
+@main_bp.route("/api/cobranca/clientes", methods=["GET"])
+@token_required
+def api_listar_clientes_cobranca():
+    page = request.args.get("page", type=int, default=1)
+    per_page = request.args.get("per_page", type=int, default=20)
+    q = request.args.get("q", type=str)
+    sort = request.args.get("sort", default="cliente")
+    order = request.args.get("order", default="asc")
+
+    result = listar_clientes_cobranca(page=page, per_page=per_page, q=q, sort=sort, order=order)
+    return jsonify(result), 200
