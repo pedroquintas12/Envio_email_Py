@@ -10,7 +10,7 @@ from app.utils.envio_email import enviar_emails
 from flask import Blueprint, current_app, jsonify, request, send_file
 from config.exeptions import AppError, BancoError, ErroInterno
 from config import config
-from app.utils.processo_data import cadastrar_cliente_cobranca, fetch_log_resumo, listar_clientes_cobranca, total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo,fetch_anexo_resumo
+from app.utils.processo_data import cadastrar_cliente_cobranca, fetch_log_resumo, listar_clientes_cobranca, remover_emails_cobranca, total_geral,historio_env,pendentes_envio,validar_dados,fetch_processes_and_clients,numeros_processos_pendentes,fetchLog,cadastrar_cliente,puxarClientesResumo,historio_env_resumo,fetch_anexo_resumo
 from config.JWT_helper import save_token_in_cache,get_cached_token
 from app.apiLig import fetch_email_api,fetch_numero_api,fetch_cliente_api
 from app.utils.salvar_base64 import salvar_arquivo_base64
@@ -735,28 +735,32 @@ def envio_cobranca(autor):
 @main_bp.route('/api/cadastrarClienteCobranca', methods=['POST'])
 @token_required
 def cadastrar_cliente_cobranca_api():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     cod_cliente = data.get('cod_cliente')
-    email = data.get('email')
+    emails = data.get('emails')
 
-    if not cod_cliente or not email:
-        return jsonify({'error':'Obrigatorio codigo do cliente e email'}),400
-    
+    if not cod_cliente or not isinstance(emails, list) or len(emails) == 0:
+        return jsonify({'error': "Obrigatório 'cod_cliente' e lista 'emails' (mínimo 1)."}), 400
+
+    emails_norm = tuple({e.strip().lower() for e in emails if isinstance(e, str) and e.strip()})
+    if not emails_norm:
+        return jsonify({'error': "Lista 'emails' inválida após normalização."}), 400
 
     try:
-        # service retorna (dict, status_code)
-        result, status_code = cadastrar_cliente_cobranca(cod_cliente, email)
+        result, status_code = cadastrar_cliente_cobranca(cod_cliente, emails_norm)
     except BancoError as e:
-        logger.error("Erro de banco ao cadastrar cliente cobrança")
+        current_app.logger.error("Erro de banco ao cadastrar cliente cobrança", exc_info=True)
         return jsonify({'error': str(e)}), 500
     except ErroInterno as e:
-        logger.error("Erro interno ao cadastrar cliente cobrança")
+        current_app.logger.error("Erro interno ao cadastrar cliente cobrança", exc_info=True)
         return jsonify({'error': str(e)}), 500
     except Exception as e:
-        logger.errorrrent_app.logger.exception("Exceção não tratada ao cadastrar cliente cobrança")
+        current_app.logger.exception("Exceção não tratada ao cadastrar cliente cobrança")
         return jsonify({'error': f'Falha inesperada: {e}'}), 500
-    
+
     return jsonify(result), status_code
+
+
 
 @main_bp.route("/api/cobranca/clientes", methods=["GET"])
 @token_required
@@ -769,3 +773,32 @@ def api_listar_clientes_cobranca():
 
     result = listar_clientes_cobranca(page=page, per_page=per_page, q=q, sort=sort, order=order)
     return jsonify(result), 200
+
+
+@main_bp.route('/api/cobranca/clientes/<int:cod>/emails', methods=['DELETE'])
+@token_required
+def deletar_email_cobranca_api(cod):
+    payload = request.get_json(silent=True) or {}
+    id_email = payload.get('id_email')
+    ids_email = payload.get('ids_email')  # opcional: lista
+    email = payload.get('email')
+    emails = payload.get('emails')
+
+    try:
+        result, status = remover_emails_cobranca(
+            cod,
+            id_email=id_email,
+            ids_email=ids_email,
+            email=email,
+            emails=emails
+        )
+        return jsonify(result), status
+    except BancoError as e:
+        current_app.logger.error("Erro de banco ao remover e-mail cobrança", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+    except ErroInterno as e:
+        current_app.logger.error("Erro interno ao remover e-mail cobrança", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        current_app.logger.exception("Exceção não tratada ao remover e-mail cobrança")
+        return jsonify({'error': f'Falha inesperada: {e}'}), 500

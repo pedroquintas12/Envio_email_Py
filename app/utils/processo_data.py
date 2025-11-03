@@ -1,4 +1,5 @@
 from datetime import datetime
+from errno import errorcode
 import math
 from sqlite3 import DatabaseError, OperationalError
 import time
@@ -917,65 +918,182 @@ def fetch_log_resumo(localizador):
         raise ErroInterno(f"Erro inesperado: {err}")
     
 
-def cadastrar_cliente_cobranca(codigo_escritorio: int, emails_cobranca: str):
+def cadastrar_cliente_cobranca(codigo_escritorio: int, emails_cobranca):
+    """
+    Novo comportamento (com tabela de e-mails separada):
+      - Se o cliente (Cod_escritorio) não existe -> cria cliente em clientes_cobranca e insere TODOS os e-mails em emails_clientes_cobranca.
+      - Se já existe -> insere/reativa APENAS os e-mails novos (ou que estavam deleted=1).
+    """
     db = get_db_connection()
     cur = db.cursor(dictionary=True)
 
+    emails_norm = {str(e).strip().lower() for e in (emails_cobranca or []) if str(e).strip()}
+    if not emails_norm:
+        return {"message": "Lista de e-mails vazia após normalização.", "status": "error"}, 400
+
+    now = datetime.now()
+
     try:
-        cur.execute("SELECT * FROM `clientes_cobranca` WHERE `Cod_escritorio`=%s", (codigo_escritorio,))
-        existente = cur.fetchone()
-        if existente:
-            return {"message": "Cliente de cobrança já cadastrado", "status": "existente"}, 409
+        try:
+            db.autocommit = False
+        except Exception:
+            pass
 
-        nome_escritorio, office_id, status_escritorio = fetch_cliente_api(
-            codigo_escritorio,
-            get_random_cached_token(Refresh=True)
-        )
+        # 1) Obter (ou criar) o cliente por Cod_escritorio
+        cur.execute("""
+            SELECT id_cliente_cobranca, cliente, deleted, is_active
+            FROM clientes_cobranca
+            WHERE Cod_escritorio = %s
+            LIMIT 1
+        """, (codigo_escritorio,))
+        row = cur.fetchone()
 
-        if status_escritorio != "L":
-            return {"message": "Escritório não está liberado para cadastro", "status": "error"}, 400
+        if not row:
+            # valida escritório na API externa
+            nome_escritorio, office_id, status_escritorio = fetch_cliente_api(
+                codigo_escritorio,
+                get_random_cached_token(Refresh=True)
+            )
+            if status_escritorio != "L":
+                return {"message": "Escritório não está liberado para cadastro", "status": "error"}, 400
 
-        cur.execute(
-            """
-            INSERT INTO `clientes_cobranca` (`Cod_escritorio`,`cliente`,`emails_cobranca`)
-            VALUES (%s,%s,%s)
-            """,
-            (codigo_escritorio, nome_escritorio, emails_cobranca)
-        )
+            # cria cliente
+            cur.execute("""
+                INSERT INTO clientes_cobranca
+                    (Cod_escritorio, cliente, is_active, deleted, created_at)
+                VALUES (%s, %s, 1, 0, %s)
+            """, (codigo_escritorio, nome_escritorio, now))
+            id_cliente = cur.lastrowid
+            cliente_nome = nome_escritorio
+            status_inicial = "novo"
+        else:
+            id_cliente = row["id_cliente_cobranca"]
+            cliente_nome = row["cliente"]
+            # Se estava deletado/inativo, reativa de forma transparente
+            if row["deleted"] or not row["is_active"]:
+                cur.execute("""
+                    UPDATE clientes_cobranca
+                    SET deleted=0, is_active=1, modified_at=%s
+                    WHERE id_cliente_cobranca=%s
+                """, (now, id_cliente))
+            status_inicial = "atualizado"
+
+        inserted = 0
+        reactivated = 0
+        skipped = 0
+
+        # 2) Buscar e-mails atuais (ativos e deletados)
+        cur.execute("""
+            SELECT LOWER(email) AS email, deleted
+            FROM emails_clientes_cobranca
+            WHERE id_cliente_cobranca = %s
+        """, (id_cliente,))
+        rows = cur.fetchall() or []
+        existentes_ativos   = {r["email"] for r in rows if not r["deleted"]}
+        existentes_deletado = {r["email"] for r in rows if r["deleted"]}
+
+        for email in emails_norm:
+            if email in existentes_ativos:
+                skipped += 1
+                continue
+            if email in existentes_deletado:
+                # reativa se já existia como deletado
+                cur.execute("""
+                    UPDATE emails_clientes_cobranca
+                    SET deleted=0, modified_at=%s
+                    WHERE id_cliente_cobranca=%s AND LOWER(email)=%s
+                """, (now, id_cliente, email))
+                reactivated += (cur.rowcount or 0)
+            else:
+                try:
+                    cur.execute("""
+                        INSERT INTO emails_clientes_cobranca
+                            (id_cliente_cobranca, email, created_at, deleted)
+                        VALUES (%s, %s, %s, 0)
+                    """, (id_cliente, email, now))
+                    inserted += 1
+                except mysql.connector.IntegrityError as ie:
+                    if ie.errno == errorcode.ER_DUP_ENTRY:
+                        skipped += 1
+                    else:
+                        raise
+
         db.commit()
 
-        return {"message": "Cliente de cobrança cadastrado com sucesso", "status": "novo"}, 201
+        # 3) total de e-mails ativos
+        cur.execute("""
+            SELECT COUNT(*) AS total_emails
+            FROM emails_clientes_cobranca
+            WHERE id_cliente_cobranca = %s AND deleted = 0
+        """, (id_cliente,))
+        total_emails = cur.fetchone()["total_emails"]
+
+        status = status_inicial
+        if inserted == 0 and reactivated == 0:
+            status = "sem_novos"
+
+        return {
+            "message": f"E-mails inseridos: {inserted}, reativados: {reactivated}, ignorados: {skipped}",
+            "status": status,
+            "inserted": inserted,
+            "reactivated": reactivated,
+            "skipped": skipped,
+            "total_emails": total_emails,
+            "cliente": cliente_nome,
+            "Cod_escritorio": codigo_escritorio,
+            "id_cliente_cobranca": id_cliente
+        }, (201 if inserted or reactivated else 200)
 
     except mysql.connector.Error as err:
-        logger.error(f"erro na consulta do banco clientes_cobranca: {err}")
+        try:
+            if getattr(db, "in_transaction", False):
+                db.rollback()
+        except Exception:
+            pass
+        logger.error(f"erro na consulta do banco clientes/emails_cobranca: {err}")
         raise BancoError(f"Falha no banco: {err}")
+
     except Exception as e:
-        logger.error(f"erro na consulta do banco clientes_cobranca: {e}")
+        try:
+            if getattr(db, "in_transaction", False):
+                db.rollback()
+        except Exception:
+            pass
+        logger.error(f"erro na consulta do banco clientes/emails_cobranca: {e}")
         raise ErroInterno(f"Erro inesperado: {e}")
-    
+
+    finally:
+        try: cur.close()
+        except Exception: pass
+        try: db.close()
+        except Exception: pass
+
+
 def fetch_cliente_cobranca(cod_escritorio: int):
     try:
         with get_db_connection() as db_connection:
-            with db_connection.cursor(dictionary=True) as db_cursor:
-                query = """
-                    SELECT 
-                        Cod_escritorio,
-                        cliente,
-                        emails_cobranca
-                    FROM clientes_cobranca
-                    WHERE Cod_escritorio = %s
-                """
-                db_cursor.execute(query, (cod_escritorio,))
-                result = db_cursor.fetchone()
-                
-                return result
-
+            with db_connection.cursor(dictionary=True) as cur:
+                cur.execute("""
+                    SELECT
+                        c.Cod_escritorio,
+                        c.cliente,
+                        GROUP_CONCAT(e.email ORDER BY e.email SEPARATOR ', ') AS emails_cobranca
+                    FROM clientes_cobranca c
+                    LEFT JOIN emails_clientes_cobranca e
+                      ON e.id_cliente_cobranca = c.id_cliente_cobranca
+                     AND e.deleted = 0
+                    WHERE c.Cod_escritorio = %s
+                      AND c.deleted = 0
+                    GROUP BY c.Cod_escritorio, c.cliente
+                """, (cod_escritorio,))
+                return cur.fetchone()
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar fetch_cliente_cobranca {err}")
         raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"Erro ao puxar fetch_cliente_cobranca {e}")
         raise ErroInterno(f"Erro inesperado: {e}")
+
 
 def status_envio_cobranca(cod_escritorio:int,email_receiver:str,subject:str,content:str,status:str,menssagem:str,autor:str):
     try:
@@ -998,11 +1116,11 @@ def status_envio_cobranca(cod_escritorio:int,email_receiver:str,subject:str,cont
 
 
 
-# Colunas permitidas para ordenação (previne SQL injection)
+# Colunas permitidas para ordenação
 SORTABLE_COLS = {
-    "Cod_escritorio": "Cod_escritorio",
-    "cliente": "cliente",
-    "emails_cobranca": "emails_cobranca",
+    "Cod_escritorio": "c.Cod_escritorio",
+    "cliente": "c.cliente",
+    "total_emails": "total_emails",  # campo derivado
 }
 
 def listar_clientes_cobranca(
@@ -1013,54 +1131,52 @@ def listar_clientes_cobranca(
     order: str = "asc",
 ):
     """
-    Paginação simples (offset/limit) + busca opcional (q) + ordenação segura.
-
-    Retorna:
-    {
-      "items": [...],
-      "page": 1,
-      "per_page": 20,
-      "total": 123,
-      "total_pages": 7,
-      "has_next": True,
-      "has_prev": False
-    }
+    Lista clientes (clientes_cobranca) e conta e-mails ativos (emails_clientes_cobranca.deleted=0).
+    Busca opcional em Cod_escritorio, cliente e e-mail (via EXISTS).
     """
     try:
-        # sane defaults
         page = max(1, int(page or 1))
-        per_page = max(1, min(int(per_page or 20), 100))  # limita a 100
-        order = (order or "asc").lower()
-        order = "desc" if order == "desc" else "asc"
+        per_page = max(1, min(int(per_page or 20), 100))
+        order = "desc" if (order or "asc").lower() == "desc" else "asc"
 
-        sort_col = SORTABLE_COLS.get(sort or "cliente", "cliente")
+        sort_col = SORTABLE_COLS.get(sort or "cliente", "c.cliente")
 
-        where = []
+        where = ["c.deleted = 0"]
         params = []
 
         if q:
-            like = f"%{q}%"
-            where.append(
-                "(Cod_escritorio LIKE %s OR cliente LIKE %s OR emails_cobranca LIKE %s)"
-            )
+            like = f"%{q.strip()}%"
+            where.append("("
+                         "CAST(c.Cod_escritorio AS CHAR) LIKE %s OR "
+                         "LOWER(c.cliente) LIKE LOWER(%s) OR "
+                         "EXISTS (SELECT 1 FROM emails_clientes_cobranca e"
+                         "        WHERE e.id_cliente_cobranca = c.id_cliente_cobranca"
+                         "          AND e.deleted = 0"
+                         "          AND LOWER(e.email) LIKE LOWER(%s))"
+                         ")")
             params.extend([like, like, like])
 
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
 
-        # 1) total
+        # total de clientes
         count_sql = f"""
-            SELECT COUNT(*) AS total
-            FROM clientes_cobranca
+            SELECT COUNT(*) AS total_clientes
+            FROM clientes_cobranca c
             {where_sql}
         """
 
-        # 2) página (ordenada e paginada)
+        # dados da página (com total_emails por cliente)
         data_sql = f"""
             SELECT
-                Cod_escritorio,
-                cliente,
-                emails_cobranca
-            FROM clientes_cobranca
+                c.Cod_escritorio,
+                c.cliente,
+                (
+                  SELECT COUNT(*)
+                  FROM emails_clientes_cobranca e
+                  WHERE e.id_cliente_cobranca = c.id_cliente_cobranca
+                    AND e.deleted = 0
+                ) AS total_emails
+            FROM clientes_cobranca c
             {where_sql}
             ORDER BY {sort_col} {order}
             LIMIT %s OFFSET %s
@@ -1070,23 +1186,19 @@ def listar_clientes_cobranca(
 
         with get_db_connection() as db:
             with db.cursor(dictionary=True) as cur:
-                # total
                 cur.execute(count_sql, params)
                 row = cur.fetchone()
-                total = int(row["total"] if row and row.get("total") is not None else 0)
+                total = int(row["total_clientes"] if row and row.get("total_clientes") is not None else 0)
 
-                # itens
                 cur.execute(data_sql, params + [per_page, offset])
                 rows = cur.fetchall() or []
 
-        items = [
-            {
-                "Cod_escritorio": r["Cod_escritorio"],
-                "cliente": r["cliente"],
-                "emails_cobranca": r["emails_cobranca"],
-            }
-            for r in rows
-        ]
+        items = [{
+            "Cod_escritorio": r["Cod_escritorio"],
+            "cliente": r["cliente"],
+            "total_emails": r["total_emails"] or 0,
+            "emails_cobranca": fetch_emails_cobranca(r["Cod_escritorio"])["emails"] if r["total_emails"] else []
+        } for r in rows]
 
         total_pages = max(1, math.ceil(total / per_page)) if total else 1
 
@@ -1105,4 +1217,168 @@ def listar_clientes_cobranca(
         raise BancoError(f"Falha no banco: {err}")
     except Exception as e:
         logger.error(f"Erro inesperado ao paginar clientes_cobranca: {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
+
+
+
+def remover_emails_cobranca(
+    codigo_escritorio: int,
+    *,
+    id_email: int | None = None,
+    ids_email: list[int] | tuple[int, ...] | None = None,
+    email: str | None = None,
+    emails: list[str] | tuple[str, ...] | None = None,
+):
+    """
+    Soft delete de e-mails de cobrança.
+    Prioridade:
+      1) ids (id_email ou ids_email)
+      2) emails (email único ou lista)
+    Retorna (dict, status_code).
+    """
+    db = get_db_connection()
+    cur = db.cursor(dictionary=True)
+    now = datetime.now()
+
+    # ----------------- Normalização de entrada -----------------
+    ids_norm: set[int] = set()
+    emails_norm: set[str] = set()
+
+    if id_email is not None:
+        try:
+            ids_norm.add(int(id_email))
+        except Exception:
+            pass
+
+    if ids_email:
+        for _id in ids_email:
+            try:
+                ids_norm.add(int(_id))
+            except Exception:
+                pass
+
+    if email:
+        emails_norm.add(str(email).strip().lower())
+
+    if emails:
+        emails_norm |= {str(e).strip().lower() for e in emails if str(e).strip()}
+
+    if not ids_norm and not emails_norm:
+        return {"message": "Informe ao menos um id_email/ids_email OU um e-mail/emails válido."}, 400
+
+    # ----------------- Execução -----------------
+    try:
+        try:
+            db.autocommit = False
+        except Exception:
+            pass
+
+        # obter id_cliente via Cod_escritorio
+        cur.execute("""
+            SELECT id_cliente_cobranca
+            FROM clientes_cobranca
+            WHERE Cod_escritorio = %s AND deleted = 0
+            LIMIT 1
+        """, (codigo_escritorio,))
+        row = cur.fetchone()
+        if not row:
+            return {"message": "Cliente não encontrado."}, 404
+
+        id_cliente = row["id_cliente_cobranca"]
+        deleted_rows = 0
+
+        # --- Prioriza remoção por ID ---
+        if ids_norm:
+            placeholders = ",".join(["%s"] * len(ids_norm))
+            params = [now, id_cliente, *ids_norm]
+            sql = f"""
+                UPDATE emails_clientes_cobranca
+                SET deleted = {id_email}, modified_at = %s
+                WHERE id_cliente_cobranca = %s
+                  AND id_email_cobranca IN ({placeholders})
+                  AND deleted = 0
+            """
+            cur.execute(sql, params)
+            deleted_rows += (cur.rowcount or 0)
+
+        # --- Fallback: remoção por e-mail (se fornecido) ---
+        if emails_norm:
+            placeholders = ",".join(["%s"] * len(emails_norm))
+            params = [now, id_cliente, *emails_norm]
+            sql = f"""
+                UPDATE emails_clientes_cobranca
+                SET deleted = 1, modified_at = %s
+                WHERE id_cliente_cobranca = %s
+                  AND LOWER(email) IN ({placeholders})
+                  AND deleted = 0
+            """
+            cur.execute(sql, params)
+            deleted_rows += (cur.rowcount or 0)
+
+        db.commit()
+
+        # total restante (ativos)
+        cur.execute("""
+            SELECT COUNT(*) AS total_emails
+            FROM emails_clientes_cobranca
+            WHERE id_cliente_cobranca = %s AND deleted = 0
+        """, (id_cliente,))
+        total_restante = cur.fetchone()["total_emails"]
+
+        return {
+            "message": ("E-mail(s) removido(s)." if deleted_rows else "Nenhum e-mail correspondente para remover."),
+            "status": "removido" if deleted_rows else "sem_efeito",
+            "removed": deleted_rows,
+            "total_emails": total_restante,
+            "Cod_escritorio": codigo_escritorio,
+            "id_cliente_cobranca": id_cliente
+        }, 200
+
+    except mysql.connector.Error as err:
+        try:
+            if getattr(db, "in_transaction", False):
+                db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Erro ao remover e-mails: {err}")
+        raise BancoError(f"Falha no banco: {err}")
+
+    except Exception as e:
+        try:
+            if getattr(db, "in_transaction", False):
+                db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Erro inesperado ao remover e-mails: {e}")
+        raise ErroInterno(f"Erro inesperado: {e}")
+
+    finally:
+        try: cur.close()
+        except: pass
+        try: db.close()
+        except: pass
+
+
+
+def fetch_emails_cobranca(cod_escritorio: int):
+    try:
+        with get_db_connection() as db_connection:
+            with db_connection.cursor(dictionary=True) as cur:
+                cur.execute("""
+                    SELECT e.id_email_cobranca, e.email
+                    FROM clientes_cobranca c
+                    JOIN emails_clientes_cobranca e
+                      ON e.id_cliente_cobranca = c.id_cliente_cobranca
+                    WHERE c.Cod_escritorio = %s
+                      AND c.deleted = 0
+                      AND e.deleted = 0
+                    ORDER BY e.email
+                """, (cod_escritorio,))
+                rows = cur.fetchall() or []
+                return {"emails": rows}
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao puxar fetch_emails_cobranca {err}")
+        raise BancoError(f"Falha no banco: {err}")
+    except Exception as e:
+        logger.error(f"Erro ao puxar fetch_emails_cobranca {e}")
         raise ErroInterno(f"Erro inesperado: {e}")

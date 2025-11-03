@@ -68,7 +68,7 @@ def generate_email_cobranca(
 
         <p style="font-size:12px; color:#666;">
           Atenciosamente,<br>
-          <strong>{empresa_nome}</strong>
+          <strong>Neide Quintas</strong>
         </p>
       </div>
     </div>
