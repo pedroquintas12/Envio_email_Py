@@ -42,7 +42,7 @@ def enviar_email_cobranca(cod_cliente, content, autor, pdf_bytes: bytes = None, 
 
         email_body = generate_email_cobranca(nome_cliente, "Lig Contato Soluções Jurídicas", content, logo=logo)
 
-        subject = f"Cobrança de serviços - {nome_cliente} - {datetime.now():%m/%Y}"
+        subject = f"Boleto Bancario em Aberto - {nome_cliente}"
 
         resposta_email = send_email(
             smtp_config=smtp_config,
