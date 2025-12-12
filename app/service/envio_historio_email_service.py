@@ -21,7 +21,9 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
             p.deleted,
             p.cod_escritorio,
             p.sigla_diario,
-            p.uf
+            p.uf,
+            p.nome_pesquisado,
+            p.vara
         FROM publications p
         JOIN publications_published p2 
             ON p2.publications_published_id = p.publications_published_id
@@ -49,7 +51,7 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
                 data_disponibilizacao = data_disponibilizacao.strftime("%Y-%m-%d")
             query += " AND p.data_disponibilizacao = %s"
             params.append(data_disponibilizacao)
-
+        query += "GROUP BY numero_processo"
         cursor.execute(query, params)
 
         registros = cursor.fetchall()
@@ -100,6 +102,8 @@ def process_result(cod_escritorio, processos, clientes_data, token):
                 'numero_processo': proc['numero_processo'],
                 'data_distribuicao': proc['data_distribuicao'],
                 'sigla_diario': proc['sigla_diario'],
+                'vara': proc['vara'],
+                'nome_pesquisado': proc['nome_pesquisado'],
                 'uf': proc['uf'],
             })
 
