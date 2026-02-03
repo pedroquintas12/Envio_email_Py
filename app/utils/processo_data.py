@@ -779,7 +779,7 @@ def puxarClientesResumo():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("""SELECT * FROM clientes WHERE recebe_resumo = true """)
+        cursor.execute("""SELECT * FROM clientes WHERE recebe_resumo = true and status = 'L'""")
         clientes = cursor.fetchall()
 
         return clientes
