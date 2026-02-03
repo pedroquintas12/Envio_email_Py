@@ -113,88 +113,68 @@ def enviar_emails_resumo(
 
                 erro_no_cliente = False
 
-                for processo in processos:
-
-                    numero_processo = processo['numero_processo']
-                    ID_processo = processo['publications_id']
-
-                    if Origem == 'Automatico':
+                if Origem == 'Automatico':
 
                         # Sem email
-                        if not emails or not email:
+                        if not emails:
                             logger.warning(f"VSAP: {cod_cliente} sem email")
 
+
                             registros_bulk.append((
-                                ID_processo,
-                                numero_processo,
                                 cod_cliente,
-                                None,
                                 data_do_dia.strftime('%Y-%m-%d'),
                                 localizador_email,
+                                subject,
                                 'N/A',
                                 'SEM EMAIL CADASTRADO',
-                                None,
                                 None,
                                 Origem,
                                 len(processos),
                                 "E",
-                                True,
                                 subject
                             ))
-
                             erro_no_cliente = True
-                            continue
 
                         # Não cadastrado API
                         if not cliente_STATUS:
                             logger.warning(f"VSAP: {cod_cliente} não cadastrado API")
 
+
                             registros_bulk.append((
-                                ID_processo,
-                                numero_processo,
                                 cod_cliente,
-                                None,
                                 data_do_dia.strftime('%Y-%m-%d'),
                                 localizador_email,
+                                subject,
                                 'N/A',
-                                'CLIENTE NÃO CADASTRADO API',
-                                None,
+                                'CLIENTE NÃO CADASTRADO NA API',
                                 None,
                                 Origem,
                                 len(processos),
                                 "E",
-                                True,
                                 subject
                             ))
 
                             erro_no_cliente = True
-                            continue
 
                         # Status não liberado
                         if cliente_STATUS[0] != 'L':
                             logger.warning(f"VSAP: {cod_cliente} não ativo")
 
                             registros_bulk.append((
-                                ID_processo,
-                                numero_processo,
                                 cod_cliente,
-                                None,
                                 data_do_dia.strftime('%Y-%m-%d'),
                                 localizador_email,
+                                subject,
                                 'N/A',
                                 f'STATUS CLIENTE {cliente_STATUS}',
-                                None,
                                 None,
                                 Origem,
                                 len(processos),
                                 "E",
-                                True,
                                 subject
                             ))
 
                             erro_no_cliente = True
-                            continue
-
                 if erro_no_cliente:
                     contador_Inativos += 1
                     continue
@@ -227,12 +207,12 @@ def enviar_emails_resumo(
                     bcc_receivers = smtp_bcc_emails
                     cc_receiver = smtp_cc_emails
 
-                elif env == 'test':
+                if env == 'test':
                     email_receiver = smtp_envio_test
                     bcc_receivers = smtp_envio_test
                     cc_receiver = smtp_envio_test
 
-                elif Origem == 'API':
+                if Origem == 'API':
                     email_receiver = email
                     bcc_receivers = None if env == 'test' else smtp_bcc_emails
                     cc_receiver = smtp_envio_test if env == 'test' else smtp_cc_emails
@@ -310,7 +290,7 @@ def enviar_emails_resumo(
                 ))
 
                 logger.info(
-                    f"E-mail enviado para {cliente} ({cod_cliente})"
+                    f"E-mail enviado para {cliente} ({cod_cliente}) \n --------------------------------------------"
                 )
 
             except Exception as cliente_error:
@@ -327,7 +307,7 @@ def enviar_emails_resumo(
                 logger.error(f"Erro insert histórico: {err}")
 
         logger.info(
-            f"Envio finalizado. Total enviados: {total_escritorios - contador_Inativos}"
+            f"Envio finalizado. Total enviados: {total_escritorios - contador_Inativos} de {total_escritorios}"
         )
 
         return {
