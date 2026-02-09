@@ -10,14 +10,15 @@ def enviar_emails_background_resumo(
     email: Optional[str] = None,
     codigo: Optional[int] = None,         # se for inteiro
     result_holder: Optional[Dict] = None, # se for dicionário
-    token: Optional[str] = None
+    token: Optional[str] = None,
+    data_fim: Optional[str] = None
 ) -> None:    
 
     try:    
         logger.info(f"Iniciando envio de e-mails com data_inicial={data_inicial} código: {codigo} para o email: {email}")
         
         # Chamada da função de envio de e-mails
-        result = enviar_emails_resumo(origem, data_inicial,email, codigo,token, tipo="xlsx")
+        result = enviar_emails_resumo(origem, data_inicial,data_fim, email, codigo, token, tipo="xlsx")
 
         status_result, code = result
         # Verifica se status_result é um dicionário de erro

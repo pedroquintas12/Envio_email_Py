@@ -508,6 +508,7 @@ def envioResumoProcesso():
     data = request.get_json()
     codigo_escritorio = data.get('office_code')
     data_envio = data.get('data')
+    data_fim = data.get('data_fim')
     email = data.get('email')
     auth_header = request.headers.get('Authorization')
     token = auth_header.split(" ")[1] if auth_header else None
@@ -523,7 +524,7 @@ def envioResumoProcesso():
     # Processamento em segundo plano como no forcar_envio
     thread = Thread(
         target=enviar_emails_background_resumo,  # precisa criar ou adaptar função específica para resumo
-        args=(data_inicial,"API" ,email, codigo_escritorio,result_holder, token)
+        args=(data_inicial,"API" ,email, codigo_escritorio,result_holder, token, data_fim)
     )
     thread.start()
     thread.join()

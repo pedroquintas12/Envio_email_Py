@@ -25,6 +25,7 @@ from config import config
 def enviar_emails_resumo(
     Origem=None,
     data_inicial=None,
+    data_fim = None,
     email=None,
     codigo=None,
     token=None,
@@ -43,6 +44,8 @@ def enviar_emails_resumo(
         if Origem == "API":
             data_inicio_obj = datetime.strptime(data_inicial, "%Y-%m-%d")
             data_inicio_br = data_inicio_obj.strftime("%d/%m/%Y")
+            data_fim_obj = datetime.strptime(data_fim, "%Y-%m-%d")
+            data_fim_br = data_fim_obj.strftime("%d/%m/%Y")
         else:
             data_inicio_obj = datetime.now().strftime("%Y-%m-%d")
             clientes = puxarClientesResumo()
@@ -75,7 +78,7 @@ def enviar_emails_resumo(
 
         #  BUSCA CLIENTES 
         clientes_data = processar_envio_publicacoes(
-            id_companies, codigo, data_inicio_obj, token
+            id_companies, codigo, data_inicio_obj,data_fim_obj ,token
         )
 
         if not clientes_data:
@@ -97,8 +100,15 @@ def enviar_emails_resumo(
                 localizador_email = str(uuid.uuid4())
 
                 # SUBJECT
-                if data_inicial:
+                if data_inicial and data_fim:
+                    subject = f"LIGCONTATO - RELATÓRIO PROCESSOS DE {data_inicio_br} A {data_fim_br} - {cliente}"
+
+                elif data_inicial:
                     subject = f"LIGCONTATO - RELATÓRIO PROCESSOS DO DIA {data_inicio_br} - {cliente}"
+
+                elif data_fim:
+                    subject = f"LIGCONTATO - RELATÓRIO PROCESSOS ATÉ {data_fim_br} - {cliente}"
+
                 else:
                     subject = f"LIGCONTATO - RELATÓRIO PROCESSOS {data_do_dia.strftime('%d/%m/%y')} - {cliente}"
 

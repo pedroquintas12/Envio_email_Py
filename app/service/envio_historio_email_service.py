@@ -6,7 +6,7 @@ from flask import jsonify
 import concurrent.futures
 from app.apiLig import fetch_cliente_api
 
-def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_disponibilizacao=None, token=None):
+def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_disponibilizacao=None,data_fim=None, token=None):
     clientes_data = {}
 
     try:
@@ -49,8 +49,20 @@ def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_dis
         if data_disponibilizacao:
             if isinstance(data_disponibilizacao, datetime):
                 data_disponibilizacao = data_disponibilizacao.strftime("%Y-%m-%d")
-            query += " AND p.data_disponibilizacao = %s"
-            params.append(data_disponibilizacao)
+
+            # se existir data final -> BETWEEN
+            if data_fim:
+                if isinstance(data_fim, datetime):
+                    data_fim = data_fim.strftime("%Y-%m-%d")
+
+                query += " AND p.data_disponibilizacao BETWEEN %s AND %s"
+                params.append(data_disponibilizacao)
+                params.append(data_fim)
+
+            else:
+                query += " AND p.data_disponibilizacao = %s"
+                params.append(data_disponibilizacao)
+                
         query += "GROUP BY numero_processo"
         cursor.execute(query, params)
 

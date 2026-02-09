@@ -256,9 +256,13 @@ def fetch_companies():
                 
                 return config
 
+    except mysql.connector.Error as err:
+        logger.error(f"Erro ao executar a consulta: {err}")
+        raise BancoError(f"Falha no banco: {err}")
     except Exception as err:
         logger.error(f"Erro na consulta do banco companies: {err}")
         raise ErroInterno(f"Erro inesperado: {err}")
+    
 # Atualiza o status do processo enviado
 def status_processo(status,processo_id):
     try:
