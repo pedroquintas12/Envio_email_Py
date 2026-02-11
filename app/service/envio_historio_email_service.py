@@ -1,12 +1,13 @@
 from datetime import datetime
 from collections import defaultdict
+from typing import Optional
 from config.db_conexão import get_db_ligcontato_connection
 from config.logger_config import logger
 from flask import jsonify
 import concurrent.futures
 from app.apiLig import fetch_cliente_api
 
-def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_disponibilizacao=None,data_fim=None, token=None):
+def processar_envio_publicacoes(companies_id=None, cod_escritorio=None, data_disponibilizacao=None, data_fim: Optional[str] = None, token=None):
     clientes_data = {}
 
     try:

@@ -37,6 +37,11 @@ def enviar_emails_resumo(
 
     try:
 
+        data_inicio_obj = None
+        data_fim_obj = None
+        data_inicio_br = None
+        data_fim_br = None
+
         data_do_dia_obj = datetime.now()
         token = get_random_cached_token(Refresh=True)
 
