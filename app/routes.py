@@ -147,7 +147,7 @@ def api_dados_pendentes():
     auth_header = request.headers['Authorization']
     token = auth_header.split(" ")[1]
 
-    pendentes = pendentes_envio(token)
+    pendentes = pendentes_envio()
     return jsonify({'pendentes':pendentes})
 
 @main_bp.route('/api/dados/historico')
@@ -160,7 +160,7 @@ def api_dados_historico():
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 10))
 
-    historico, total_registros = historio_env(token, page, per_page)
+    historico, total_registros = historio_env(page, per_page)
 
     return jsonify({
         'pagina_atual': page,
@@ -187,7 +187,7 @@ def api_dados_total():
     end_date = request.args.get('end')      # Data de fim (opcional)
     
     # Chamando a função total_geral, passando o token e as datas se existirem
-    total = total_geral(token, start_date, end_date)
+    total = total_geral(start_date, end_date)
     
     # Retorna os dados no formato JSON
     return jsonify({'total_enviados': total})
