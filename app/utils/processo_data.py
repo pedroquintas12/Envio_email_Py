@@ -359,15 +359,13 @@ def formatar_data(data):
         return data.strftime("%d/%m/%Y %H:%M:%S")
     return None
 
-def historio_env(token, page=1, per_page=10):
+def historio_env(page=1, per_page=10):
     try:
-        listnmes = []
         offset = (page - 1) * per_page
 
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
 
-        # Consulta para contar o total de registros (sem paginação)
         count_query = """
             SELECT COUNT(*) as total
             FROM (
@@ -379,10 +377,10 @@ def historio_env(token, page=1, per_page=10):
         db_cursor.execute(count_query)
         total_registros = db_cursor.fetchone()['total']
 
-        # Consulta principal com paginação
         query = f"""
             SELECT 
                 e.cod_escritorio,
+                c.Cliente_VSAP AS nome_cliente,
                 e.localizador,
                 e.origem,
                 e.total,
@@ -390,44 +388,25 @@ def historio_env(token, page=1, per_page=10):
                 e.status
             FROM 
                 apidistribuicao.envio_emails e
+            LEFT JOIN 
+                apidistribuicao.clientes c 
+                ON e.cod_escritorio = c.Cod_escritorio
             GROUP BY 
-                e.cod_escritorio, e.localizador, e.origem, e.total, e.status
+                e.cod_escritorio, c.Cliente_VSAP, e.localizador, e.origem, e.total, e.status
             ORDER BY
                 ultima_data_envio DESC
-            LIMIT {per_page} OFFSET {offset};
+            LIMIT %s OFFSET %s;
         """
-        db_cursor.execute(query)
+
+        db_cursor.execute(query, (per_page, offset))
         dados = db_cursor.fetchall()
 
-        indexed_data = {i: registro for i, registro in enumerate(dados)}
-
-        with ThreadPoolExecutor() as executor:
-            futures = {
-                executor.submit(fetch_cliente_api_dashboard, registro['cod_escritorio'], token): index
-                for index, registro in indexed_data.items()
-            }
-
-            for future in as_completed(futures):
-                index = futures[future]
-                try:
-                    nome_do_cliente = future.result()
-                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não cadastrado'
-                except concurrent.futures.TimeoutError:
-                    logger.error(f"Timeout ao obter nome do cliente para o índice {index}.")
-                    indexed_data[index]['nome_cliente'] = 'Timeout ao obter cliente'
-                except concurrent.futures.CancelledError:
-                    logger.error(f"Operação cancelada ao obter nome do cliente para o índice {index}.")
-                    indexed_data[index]['nome_cliente'] = 'Operação cancelada'
-                except Exception as e:
-                    logger.error(f"Erro ao obter nome do cliente: {e}")
-                    indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
-
-        for registro in indexed_data.values():
+        for registro in dados:
             registro['ultima_data_envio'] = formatar_data(registro['ultima_data_envio'])
+            if not registro['nome_cliente']:
+                registro['nome_cliente'] = 'Cliente não cadastrado'
 
-        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
-
-        return listnmes, total_registros
+        return dados, total_registros
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar historico de envio {err}")
@@ -435,53 +414,40 @@ def historio_env(token, page=1, per_page=10):
     except Exception as e:
         logger.error(f"Erro ao puxar historico de envio {e}")
         raise ErroInterno(f"Erro inesperado: {e}")
+    
 
-
-def pendentes_envio(token):
+def pendentes_envio():
     try:
-        listnmes = []
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
-        query = """SELECT
-                    p.Cod_escritorio,
-                    COUNT(p.Cod_escritorio) AS Total
-                FROM 
-                    apidistribuicao.processo p
-                    INNER JOIN apidistribuicao.clientes AS c ON p.Cod_escritorio = c.Cod_escritorio
-                WHERE 
-                    p.deleted = 0
-                    AND p.status = 'P'
-                GROUP BY
-                    p.Cod_escritorio,
-                    c.Cliente_VSAP
-                ORDER BY
-                    p.Cod_escritorio;"""
+
+        query = """
+            SELECT
+                p.Cod_escritorio,
+                c.Cliente_VSAP AS nome_cliente,
+                COUNT(p.Cod_escritorio) AS Total
+            FROM 
+                apidistribuicao.processo p
+            LEFT JOIN 
+                apidistribuicao.clientes c 
+                ON p.Cod_escritorio = c.Cod_escritorio
+            WHERE 
+                p.deleted = 0
+                AND p.status = 'P'
+            GROUP BY
+                p.Cod_escritorio, c.Cliente_VSAP
+            ORDER BY
+                p.Cod_escritorio;
+        """
+
         db_cursor.execute(query)
         dados = db_cursor.fetchall()
 
-        # Mapeando registros com índices
-        indexed_data = {i: registro for i, registro in enumerate(dados)}
+        for registro in dados:
+            if not registro['nome_cliente']:
+                registro['nome_cliente'] = 'Cliente não cadastrado'
 
-        # Usando threading
-        with ThreadPoolExecutor() as executor:
-            futures = {
-                executor.submit(fetch_cliente_api_dashboard, registro['Cod_escritorio'], token): index
-                for index, registro in indexed_data.items()
-            }
-
-            for future in as_completed(futures):
-                index = futures[future]
-                try:
-                    nome_do_cliente = future.result()
-                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não cadastrado'
-                except Exception as e:
-                    logger.error(f"Erro ao obter nome do cliente: {e}")
-                    indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
-
-        # Reconstruindo a lista na ordem original
-        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
-
-        return listnmes
+        return dados
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar pendentes {err}")
@@ -489,70 +455,64 @@ def pendentes_envio(token):
     except Exception as e:
         logger.error(f"Erro ao puxar pendentes {e}")
         raise ErroInterno(f"Erro inesperado: {e}")
+    
 
-
-def total_geral(token, start_date=None, end_date=None):
+def total_geral(start_date=None, end_date=None):
     data = datetime.now()
     ano = data.year
     mes = data.month
     data_inicio_obj = data.strftime("%Y-%m-%d")
+
     try:
-        listnmes = []
         db_connection = get_db_connection()
         db_cursor = db_connection.cursor(dictionary=True)
-        query = f"""SELECT
-                        p.Cod_Escritorio AS Codigo_VSAP,
-                        COUNT(p.ID_processo) AS totalDistribuicoes
-                    FROM
-                        apidistribuicao.processo AS p
-                    WHERE
-                        p.deleted = 0
-                    """
-        
-        # Condição para a data atual (sem filtro de data)
+
+        query = """
+            SELECT
+                p.Cod_Escritorio AS Codigo_VSAP,
+                c.Cliente_VSAP AS nome_cliente,
+                COUNT(p.ID_processo) AS totalDistribuicoes
+            FROM
+                apidistribuicao.processo p
+            LEFT JOIN
+                apidistribuicao.clientes c
+                ON p.Cod_Escritorio = c.Cod_escritorio
+            WHERE
+                p.deleted = 0
+        """
+
+        params = []
+
         if not start_date and not end_date:
-            query += f" AND DATE(p.data_insercao) BETWEEN '{ano}-{mes}-01' AND '{data_inicio_obj}' "
-        
-        # Condição para o filtro de data especificado (com start_date e end_date)
+            query += " AND DATE(p.data_insercao) BETWEEN %s AND %s "
+            params.extend([f"{ano}-{mes}-01", data_inicio_obj])
+
         if start_date and end_date:
-            query += f" AND DATE(p.data_insercao) BETWEEN '{start_date}' AND '{end_date}' "
-        
-        query += """ GROUP BY 
-                        Codigo_VSAP 
-                    ORDER BY totalDistribuicoes DESC;"""
-        
-        db_cursor.execute(query)
+            query += " AND DATE(p.data_insercao) BETWEEN %s AND %s "
+            params.extend([start_date, end_date])
+
+        query += """
+            GROUP BY 
+                p.Cod_Escritorio, c.Cliente_VSAP
+            ORDER BY 
+                totalDistribuicoes DESC;
+        """
+
+        db_cursor.execute(query, params)
         dados = db_cursor.fetchall()
 
-        total_geral_distribuicoes = sum([registro['totalDistribuicoes'] for registro in dados if 'totalDistribuicoes' in registro])
+        total_geral_distribuicoes = sum(
+            registro['totalDistribuicoes'] for registro in dados
+        )
 
-        # Mapeando registros com índices
-        indexed_data = {i: registro for i, registro in enumerate(dados)}
+        for registro in dados:
+            if not registro['nome_cliente']:
+                registro['nome_cliente'] = 'Cliente não cadastrado'
 
-        # Usando threading
-        with ThreadPoolExecutor() as executor:
-            futures = {
-                executor.submit(fetch_cliente_api_dashboard, registro['Codigo_VSAP'],token): index
-                for index, registro in indexed_data.items()
-            }
-
-            for future in as_completed(futures):
-                index = futures[future]
-                try:
-                    nome_do_cliente = future.result()
-                    indexed_data[index]['nome_cliente'] = nome_do_cliente if nome_do_cliente else 'Cliente não cadastrado'
-                except Exception as e:
-                    logger.error(f"Erro ao obter nome do cliente: {e}")
-                    indexed_data[index]['nome_cliente'] = 'Erro ao obter cliente'
-
-        # Reconstruindo a lista na ordem original
-        listnmes = [indexed_data[i] for i in sorted(indexed_data)]
-
-        resultado = {
-            "detalhes": listnmes,
+        return {
+            "detalhes": dados,
             "total_distribuicoes": total_geral_distribuicoes
         }
-        return resultado
 
     except mysql.connector.Error as err:
         logger.error(f"Erro ao puxar historico total {err}")

@@ -99,7 +99,6 @@ def refresh_token():
             logger.info(f"Erro ao renovar o token. Código: {response.status_code}. Detalhes: {response.text}")
     except Exception as e:
         logger.error(f"Erro ao renovar o token: {e}")
-
     return None
 
 
